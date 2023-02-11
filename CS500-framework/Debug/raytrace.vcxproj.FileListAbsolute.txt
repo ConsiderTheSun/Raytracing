@@ -1,0 +1,2 @@
+C:\Users\madel\Downloads\CS500-framework\Debug\raytrace.exe
+C:\Users\madel\Documents\DigiFolder\S23\Raytracing\CS500-framework\Debug\raytrace.exe
