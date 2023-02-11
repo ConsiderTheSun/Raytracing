@@ -18,6 +18,8 @@
 #include "raytrace.h"
 #include "realtime.h"
 
+#include "AuxilaryFunctions.h"
+
 
 
 
@@ -31,34 +33,17 @@ std::mt19937_64 RNGen(device());
 std::uniform_real_distribution<> myrandom(0.0, 1.0);
 // Call myrandom(RNGen) to get a uniformly distributed random number in [0,1].
 
-Scene::Scene() 
-{ 
+Scene::Scene() { 
     realtime = new Realtime(); 
 }
 
 void Scene::Finit()
 {
-
     aBvh = new AccelerationBvh(shapeList);
 }
 
 void Scene::triangleMesh(MeshData* mesh) 
 { 
-    /*if (mesh->triangles.size()>500) {
-        std::vector<ivec3> newTris;
-        for (int i = 0; i < mesh->triangles.size() / 4; ++i) {
-            newTris.push_back(mesh->triangles[i]);
-        }
-        mesh->triangles = newTris;
-
-        ivec3 data(mesh->triangles[100]);
-        mesh->triangles.resize(1);
-        mesh->triangles[0] = data;
-    }
-    else {
-        return;
-    }*/
-
     realtime->triangleMesh(mesh); 
 
     Shape* s = new Tri(mesh, mesh->mat);
@@ -135,7 +120,7 @@ void Scene::Command(const std::vector<std::string>& strings,
 
         Shape* s = new Sphere(vec3(f[1], f[2], f[3]), f[4], currentMat);
         if(currentMat->isLight()) lightList.push_back(s);
-        else                    shapeList.push_back(s);
+        shapeList.push_back(s);
     }
 
     else if (c == "box") {
@@ -145,7 +130,7 @@ void Scene::Command(const std::vector<std::string>& strings,
     
         Shape* s = new Box(vec3(f[1], f[2], f[3]), vec3(f[4], f[5], f[6]), currentMat);
         if (currentMat->isLight()) lightList.push_back(s);
-        else                    shapeList.push_back(s);
+        shapeList.push_back(s);
     }
 
     else if (c == "cylinder") {
@@ -155,7 +140,7 @@ void Scene::Command(const std::vector<std::string>& strings,
 
         Shape* s = new Cylinder(vec3(f[1], f[2], f[3]), vec3(f[4], f[5], f[6]), f[7], currentMat);
         if (currentMat->isLight()) lightList.push_back(s);
-        else                    shapeList.push_back(s);
+        shapeList.push_back(s);
     }
 
 
@@ -181,77 +166,126 @@ void Scene::Command(const std::vector<std::string>& strings,
 
 Intersection Scene::TraceRay(Ray r) {
     return aBvh->intersect(r);
-
-    /*
-    // The old method without the spatial data structure speedup
-    Intersection closestIntersection = Intersection();
-
-    if (shapeList.size() == 0) return closestIntersection;
-    
-    for (Shape* shape : shapeList) {
-        Intersection newIntersection = shape->intersect(r);
-
-        if (!newIntersection.miss && newIntersection.t>0 && (newIntersection.t < closestIntersection.t|| closestIntersection.miss)) {
-            closestIntersection = newIntersection;
-        }
-    }
-    return closestIntersection;*/
 }
 
-void Scene::TraceImage(Color* image, const int pass)
-{
+Color Scene::TracePath(Ray r) {
+    // TEMP LIGHT DATA
+    //Sphere* lightSphere = dynamic_cast<Sphere*>(lightList[0]);
+
+    
+    Color C = Color(0, 0, 0);// Accumulated light
+    glm::vec3 W(1, 1, 1);// Accumulated weight
+
+    // Initial Ray
+    Intersection P = TraceRay(r);
+    glm::vec3 N = P.n;
+    if (P.miss) return C;
+    if (P.shape->material->isLight()) return P.shape->EvalRadiance();
+
+    while (AuxilaryFunctions::random() <= RUSSIAN_ROULETTE) {
+        N = P.n;
+
+        // Explicit light connection
+        Intersection L = SampleLight();
+        float p = PdfLight(L) / GeometryFactor(P,L);
+        glm::vec3 omegaI = L.point - P.point;
+
+        Intersection I = TraceRay(Ray(P.point, omegaI));
+
+        if (p > 0 && !I.miss && SamePoint(L,I)) {
+            const glm::vec3 f = P.shape->EvalScattering(N, omegaI);
+            C += 0.5f * W * f/p * L.shape->EvalRadiance();
+        }
+
+        // Extend path
+        
+        omegaI = P.shape->SampleBrdf(N);
+        Intersection Q = TraceRay(Ray(P.point, omegaI));
+
+        if (Q.miss) break;
+
+        const glm::vec3 f = P.shape->EvalScattering(N, omegaI);
+        p = P.shape->PdfBrdf(N, omegaI) * RUSSIAN_ROULETTE;
+
+        if (p < EPSILON) break;
+
+        W *= f / p;
+
+        if (Q.shape->material->isLight()) {
+            C += 0.5f * W * Q.shape->EvalRadiance();
+            break;
+        }
+        P = Q;
+        N = P.n; // TODO: this shouldn't be needed
+    }
+
+    //color = dot(i.n, lightSphere->getCenter()) * i.shape->material->Kd; // aprox lighting v1
+
+    //C = 0.5f * dot(P.n, lightSphere->getCenter()) * P.shape->material->Kd; // aprox lighting
+
+    //color = i.shape->material->Kd; // just kd
+    //color = vec3((i.t-5)/4); // t values
+    //color = glm::abs(i.n); // normals
+
+    return C;
+}
+
+Intersection Scene::SampleLight() {
+    int index = (int)AuxilaryFunctions::random(0, lightList.size()-0.1f);
+
+    Sphere* lightChoice = dynamic_cast<Sphere*>(lightList[index]);
+
+    if (!lightChoice) {
+        std::cout << "ERROR: light not a sphere!!!" << std::endl;
+        return Intersection();
+    }
+
+    return lightChoice->SampleSphere();
+}
+
+float Scene::GeometryFactor(const Intersection& A, const Intersection& B) {
+    const glm::vec3 D = A.point - B.point;
+    return abs(dot(A.n, D) * dot(B.n, D) / pow(dot(D, D), 2));
+}
+
+bool Scene::SamePoint(const Intersection& A, const Intersection& B) {
+    return A.shape == B.shape;//&& glm::epsilonEqual(A.point, B.point, glm::vec3(EPSILON)).x;
+}
+
+
+
+void Scene::TraceImage(Color* image, const int pass){
+
+    const glm::vec3 X = (sceneCam.ry * ((float)width) / height) * transformVector(sceneCam.orient, glm::vec3(1, 0, 0));
+    const glm::vec3 Y = sceneCam.ry * transformVector(sceneCam.orient, glm::vec3(0, 1, 0));
+    const glm::vec3 Z = transformVector(sceneCam.orient, glm::vec3(0, 0, 1));
+
+    for (int _ = 0; _ < pass; ++_) {
+#pragma omp parallel for schedule(dynamic, 1) // Magic: Multi-thread y loop
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                const glm::vec2 d = glm::vec2(2 * (x + AuxilaryFunctions::random()) / width - 1,
+                    2 * (y +AuxilaryFunctions::random()) / height - 1);
+                const Ray r = Ray(sceneCam.eye, normalize(d.x * X + d.y * Y - Z));
+
+                image[y * width + x] += TracePath(r);
+            }
+        }
+    }
+}
+
+
+void Scene::SetCameraData() {
     realtime->run();
 
     sceneCam = realtime->getCamera();
 
     std::cout << "Camera Data:\n"
-        << "\teye: (" << sceneCam.eye.x<<", " << sceneCam.eye.y<<", " << sceneCam.eye.z<<")\n"
-        << "\torientation: " << sceneCam.orient.x << ", " 
-                             << sceneCam.orient.y << ", "
-                             << sceneCam.orient.z << ", "
-                             << sceneCam.orient.w << ")\n"
+        << "\teye: (" << sceneCam.eye.x << ", " << sceneCam.eye.y << ", " << sceneCam.eye.z << ")\n"
+        << "\torientation: " << sceneCam.orient.x << ", "
+        << sceneCam.orient.y << ", "
+        << sceneCam.orient.z << ", "
+        << sceneCam.orient.w << ")\n"
         << "\try: " << sceneCam.ry << std::endl;
-
-    // TEMP LIGHT DATA
-    Sphere* lightSphere = dynamic_cast<Sphere*>(lightList[0]);
-    if (!lightSphere) {
-        std::cerr << "LIGHT SPHERE NOT WORKING!!!" << std::endl;
-    }
-    const glm::vec3 X = (sceneCam.ry * ((float)width) / height) * transformVector(sceneCam.orient, glm::vec3(1, 0, 0));
-    const glm::vec3 Y = sceneCam.ry * transformVector(sceneCam.orient, glm::vec3(0, 1, 0));
-    const glm::vec3 Z = transformVector(sceneCam.orient, glm::vec3(0, 0, 1));
-
-
-    start = std::chrono::high_resolution_clock::now();
-
-
-#pragma omp parallel for schedule(dynamic, 1) // Magic: Multi-thread y loop
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            Color color;
-
-            const glm::vec2 d = glm::vec2(2 * (x + 0.5) / width - 1,
-                                          2 * (y + 0.5) / height - 1);
-            const Ray r = Ray(sceneCam.eye,normalize(d.x * X + d.y * Y - Z));
-            const Intersection i = TraceRay(r);
-
-            if (i.miss) {
-                color = Color(1.0, 1.0, 1.0);
-            }
-            else {
-                //color = dot(i.n, lightSphere->getCenter()) * i.shape->material->Kd; // aprox lighting v1
-                color = 0.5f* dot(i.n, lightSphere->getCenter()) * i.shape->material->Kd; // aprox lighting
-                //color = i.shape->material->Kd; // just kd
-                //color = vec3((i.t-5)/4); // t values
-                //color = glm::abs(i.n); // normals
-            }
-
-            image[y * width + x] = color;
-        }
-    }
-
-    std::chrono::time_point<std::chrono::high_resolution_clock> stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
-
-    std::cout << "finished with time " << duration.count() << std::endl;
 }
+

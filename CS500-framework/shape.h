@@ -4,6 +4,9 @@
 #include <limits>
 #include <algorithm>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 class Material;
 class MeshData;
 class VertexData
@@ -25,21 +28,21 @@ struct MeshData
 	Material* mat;
 };
 
-// FIX THIS:  Dummy ray to allow for compilation
 class Ray {
 public:
 	vec3 o, d;
 	Ray(const vec3 _o, const vec3 _d) : o(_o), d(_d) {}
 };
 class Shape;
-// FIX THIS:  This dummy Intersection record is defficient -- just barely enough to compile.
+
 class Intersection {
 public:
-	Intersection() :shape(nullptr),miss(true), t(0),n(glm::vec3()) {}
-	Intersection(Shape* s, float _t, glm::vec3 _n) :shape(s),miss(false), t(_t), n(_n) {}
+	Intersection() :shape(nullptr),miss(true), t(0),n(glm::vec3()),point(glm::vec3()) {}
+	Intersection(Shape* s, float _t, glm::vec3 _n, glm::vec3 _point) :shape(s),miss(false), t(_t), n(_n), point(_point) {}
 	Shape* shape;
 	bool miss;
 	float t;
+	glm::vec3 point;
 	glm::vec3 n;
 	float distance() const { return t; }  // A function the BVH traversal needs to be supplied.
 };
@@ -53,6 +56,15 @@ public:
 	Shape(Material* m) :material(m) {}
 
 	Material * material;
+
+	glm::vec3 SampleBrdf(glm::vec3 N);
+	float PdfBrdf(glm::vec3 N, glm::vec3 omegaI);
+	glm::vec3 EvalScattering(glm::vec3 N, glm::vec3 omegaI);
+
+	virtual float Area() { std::cout << "Area not implemented for this shape" << std::endl; return 0; }
+
+	// these functions assume the shape is a light
+	Color EvalRadiance();
 };
 
 struct Interval {
@@ -81,6 +93,10 @@ public:
 
 	Intersection intersect(Ray r);
 	std::vector<glm::vec3> pointList();
+
+	Intersection SampleSphere();
+
+	float Area() override { return 4 * M_PI * radius * radius; }
 
 private:
 	glm::vec3 center;

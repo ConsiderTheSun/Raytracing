@@ -126,12 +126,14 @@ xcopy .\libs\assimp\32\assimp.dll .\Release /Y /D</Command>
       <OpenMPSupport Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</OpenMPSupport>
       <OpenMPSupport Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</OpenMPSupport>
     </ClCompile>
+    <ClCompile Include="AuxilaryFunctions.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="geom.cpp" />
     <ClCompile Include="raytrace.cpp" />
     <ClCompile Include="readAssimpFile.cpp" />
     <ClCompile Include="realtime.cpp" />
     <ClCompile Include="rgbe.cpp" />
+    <ClInclude Include="AuxilaryFunctions.h" />
     <ClInclude Include="realtime.h" />
     <ClInclude Include="geom.h" />
     <ClInclude Include="shape.h" />

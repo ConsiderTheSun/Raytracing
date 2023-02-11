@@ -3,11 +3,15 @@
 //#include "raytrace.h"
 #include "acceleration.h"
 
-
+#include "AuxilaryFunctions.h"
 #include <bvh/sweep_sah_builder.hpp>
 #include <bvh/single_ray_traverser.hpp>
 #include <bvh/primitive_intersectors.hpp>
 
+#include "raytrace.h"
+
+
+const float EPSILON = std::numeric_limits<float>::epsilon();
 /////////////////////////////
 // Vector and ray conversions
 Ray RayFromBvh(const bvh::Ray<float> &r)
@@ -117,11 +121,33 @@ Intersection AccelerationBvh::intersect(const Ray& ray)
 //////////////////////////////////////////////////////////
 
 
+
+glm::vec3 Shape::SampleBrdf(glm::vec3 N){
+    float xi1 = AuxilaryFunctions::random();
+    float xi2 = AuxilaryFunctions::random();
+
+    return AuxilaryFunctions::SampleLobe(N, sqrt(xi1), 2 * M_PI * xi2);
+}
+
+float Shape::PdfBrdf(glm::vec3 N, glm::vec3 omegaI) {
+    return abs(dot(N, omegaI)) / M_PI;
+}
+glm::vec3 Shape::EvalScattering(glm::vec3 N, glm::vec3 omegaI) {
+    return abs(dot(N, omegaI)) * material->Kd / M_PI;
+}
+
+Color Shape::EvalRadiance() {
+    return material->Kd; 
+}
+
+
+
+
 Interval Slab::intersect(Ray r) {
     const float NQ = dot(n, r.o);
     const float ND = dot(n, r.d);
     // Ray intersects both slab planes
-    if (abs(ND) > std::numeric_limits<float>::epsilon()) {
+    if (abs(ND) > EPSILON) {
         float t0 = -(d0 + NQ) / ND;
         float t1 = -(d1 + NQ) / ND;
         if (t0 > t1) {
@@ -154,14 +180,14 @@ Intersection Sphere::intersect(Ray r) {
     float t1 = -bHalf + sqrtD;
     float t2 = -bHalf - sqrtD;
 
-    if (t1 < 0 && t2 < 0) {
+    if (t1 < EPSILON && t2 < EPSILON) {
         return Intersection();
     }
     else if (t1 < t2) {
-        return Intersection(this, t1, normalize((r.o + t1 * r.d) - center));
+        return Intersection(this, t1, normalize((r.o + t1 * r.d) - center), r.o + r.d*t1);
     }
     else {
-        return Intersection(this, t2, normalize((r.o + t2 * r.d) - center));
+        return Intersection(this, t2, normalize((r.o + t2 * r.d) - center), r.o + r.d * t2);
     }
 };
 
@@ -187,11 +213,11 @@ Intersection Box::intersect(Ray r) {
     if (interval.t0 > interval.t1) {
         return Intersection();
     }
-    else if (interval.t0 > 0) {
-        return Intersection(this, interval.t0, -interval.n0);
+    else if (interval.t0 > EPSILON) {
+        return Intersection(this, interval.t0, -interval.n0, r.o + r.d * interval.t0);
     }
-    else if (interval.t1 > 0) {
-        return Intersection(this, interval.t1, -interval.n1);
+    else if (interval.t1 > EPSILON) {
+        return Intersection(this, interval.t1, -interval.n1, r.o + r.d * interval.t1);
     }
     else {
         return Intersection();
@@ -202,7 +228,7 @@ Intersection Cylinder::intersect(Ray r) {
     glm::vec3 aBar = normalize(axis);
 
     glm::vec3 bTemp = cross(glm::vec3(0, 0, 1), aBar);
-    if (glm::length(bTemp) < std::numeric_limits<float>::epsilon()) bTemp = cross(glm::vec3(1, 0, 0), aBar);
+    if (glm::length(bTemp) < EPSILON) bTemp = cross(glm::vec3(1, 0, 0), aBar);
     glm::vec3 bBar = normalize(bTemp);
 
     glm::vec3 cBar = cross(aBar, bBar);
@@ -252,11 +278,11 @@ Intersection Cylinder::intersect(Ray r) {
     if (interval.t0 > interval.t1) {
         return Intersection();
     }
-    else if (interval.t0 > 0) {
-        return Intersection(this, interval.t0, interval.n0);
+    else if (interval.t0 > EPSILON) {
+        return Intersection(this, interval.t0, interval.n0, r.o + r.d * interval.t0);
     }
-    else if (interval.t1 > 0) {
-        return Intersection(this, interval.t1, interval.n1);
+    else if (interval.t1 > EPSILON) {
+        return Intersection(this, interval.t1, interval.n1, r.o + r.d * interval.t1);
     }
     else {
         return Intersection();
@@ -264,7 +290,7 @@ Intersection Cylinder::intersect(Ray r) {
 };
 
 Intersection Tri::intersect(Ray r) {
-    Intersection bestIntersection= Intersection(this,std::numeric_limits<float>::infinity(),glm::vec3());
+    Intersection bestIntersection= Intersection(this,std::numeric_limits<float>::infinity(),glm::vec3(),glm::vec3());
     bestIntersection.miss = true;
     for (ivec3 tri : mesh->triangles) {
         const VertexData& V0 = mesh->vertices[tri[0]];
@@ -277,7 +303,7 @@ Intersection Tri::intersect(Ray r) {
         const glm::vec3 p = cross(r.d, E2);
         float d = dot(p, E1);
         
-        if (abs(d) < std::numeric_limits<float>::epsilon()) continue;
+        if (abs(d) < EPSILON) continue;
 
         const glm::vec3 S = r.o - V0.pnt;
         float u = dot(p, S) / d;
@@ -288,14 +314,14 @@ Intersection Tri::intersect(Ray r) {
         float v = dot(r.d, q) / d;
         if (v < 0 || (u + v)>1) continue;
         float t = dot(E2, q) / d;
-        if (t <= 0) continue;
+        if (t <= EPSILON) continue;// TODO: make sure this is right
       
         glm::vec3 n = (1 - u - v) * V0.nrm + u * V1.nrm + v * V2.nrm;  
         if (t < bestIntersection.t) {
-            bestIntersection = Intersection(this, t, n);
+            bestIntersection = Intersection(this, t, n, r.o + r.d * t);
         }
     }
-
+    
     if (bestIntersection.miss) return Intersection();
     return bestIntersection;
 };
@@ -336,4 +362,18 @@ std::vector<glm::vec3> Tri::pointList() {
     }
 
     return pointList;
+}
+
+
+Intersection Sphere::SampleSphere() {
+    float xi1 = AuxilaryFunctions::random();
+    float xi2 = AuxilaryFunctions::random();
+
+    float z = 2 * xi1 - 1;
+    float r = sqrt(1 - pow(z, 2));
+    float a = 2 * M_PI * xi2;
+
+    glm::vec3 N = glm::vec3(r * cos(a), r * sin(a), z);
+    glm::vec3 P = center + radius * N;
+    return Intersection(this, 0, N, P);
 }
