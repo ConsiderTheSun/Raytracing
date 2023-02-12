@@ -169,10 +169,6 @@ Intersection Scene::TraceRay(Ray r) {
 }
 
 Color Scene::TracePath(Ray r) {
-    // TEMP LIGHT DATA
-    //Sphere* lightSphere = dynamic_cast<Sphere*>(lightList[0]);
-
-    
     Color C = Color(0, 0, 0);// Accumulated light
     glm::vec3 W(1, 1, 1);// Accumulated weight
 
@@ -198,7 +194,6 @@ Color Scene::TracePath(Ray r) {
         }
 
         // Extend path
-        
         omegaI = P.shape->SampleBrdf(N);
         Intersection Q = TraceRay(Ray(P.point, omegaI));
 
@@ -216,17 +211,7 @@ Color Scene::TracePath(Ray r) {
             break;
         }
         P = Q;
-        N = P.n; // TODO: this shouldn't be needed
     }
-
-    //color = dot(i.n, lightSphere->getCenter()) * i.shape->material->Kd; // aprox lighting v1
-
-    //C = 0.5f * dot(P.n, lightSphere->getCenter()) * P.shape->material->Kd; // aprox lighting
-
-    //color = i.shape->material->Kd; // just kd
-    //color = vec3((i.t-5)/4); // t values
-    //color = glm::abs(i.n); // normals
-
     return C;
 }
 
@@ -249,7 +234,9 @@ float Scene::GeometryFactor(const Intersection& A, const Intersection& B) {
 }
 
 bool Scene::SamePoint(const Intersection& A, const Intersection& B) {
-    return A.shape == B.shape;//&& glm::epsilonEqual(A.point, B.point, glm::vec3(EPSILON)).x;
+    glm::vec3 diff = A.point - B.point;
+    //std::cout << sqrt(pow(diff.x, 2) + pow(diff.y, 2) + pow(diff.z, 2)) << std::endl;
+    return A.shape == B.shape && dot(diff, diff) < 0.1f; //TODO: this doesn't seem right
 }
 
 
