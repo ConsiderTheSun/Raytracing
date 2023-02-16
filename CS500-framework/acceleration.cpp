@@ -122,18 +122,81 @@ Intersection AccelerationBvh::intersect(const Ray& ray)
 
 
 
-glm::vec3 Shape::SampleBrdf(glm::vec3 N){
-    float xi1 = AuxilaryFunctions::random();
-    float xi2 = AuxilaryFunctions::random();
+glm::vec3 Shape::SampleBrdf(glm::vec3 omegaO, glm::vec3 N){
 
-    return AuxilaryFunctions::SampleLobe(N, sqrt(xi1), 2 * M_PI * xi2);
+    const float xi = AuxilaryFunctions::random();
+    const float xi1 = AuxilaryFunctions::random();
+    const float xi2 = AuxilaryFunctions::random();
+
+    float pd = glm::length(material->Kd);
+    pd /= (pd + glm::length(material->Ks));
+    // diffuse 
+    if (xi < pd) {
+        return AuxilaryFunctions::SampleLobe(N, sqrt(xi1), 2 * M_PI * xi2);
+    }
+    // reflection
+    else {
+        const float cosThetaM = pow(xi1, 1/(material->alpha)); // TODO: make sure this is the right alpha
+        const glm::vec3 m = AuxilaryFunctions::SampleLobe(N, cosThetaM, 2 * M_PI * xi2);
+
+        return 2.0f * abs(dot(omegaO, m)) * m - omegaO;
+    }
+    
+
+    
 }
 
-float Shape::PdfBrdf(glm::vec3 N, glm::vec3 omegaI) {
-    return abs(dot(N, omegaI)) / M_PI;
+float Shape::PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
+    glm::vec3 m = normalize(omegaO + omegaI);
+
+    float pd = glm::length(material->Kd);
+    float pr = 1.0f - pd;
+
+    float Pd = abs(dot(omegaO, N)) / M_PI;
+    float Pr = D(m,N) * abs(dot(m, N)) / (4 * abs(dot(omegaI, m)));
+
+    return pd*Pd + pr*Pr;
 }
-glm::vec3 Shape::EvalScattering(glm::vec3 N, glm::vec3 omegaI) {
-    return abs(dot(N, omegaI)) * material->Kd / M_PI;
+glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
+    const glm::vec3 m = normalize(omegaO + omegaI);
+
+    const glm::vec3 Ed = material->Kd / M_PI;
+    const glm::vec3 Er = ( D(m,N) * G(omegaI, omegaO, m, N) * F(dot(omegaI, m)) )
+                 / ( 4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N)) );
+    
+    return abs(dot(N, omegaI)) * (Ed + Er);
+}
+float Shape::Kai(float d) {
+    if (d > 0) return 1;
+    else       return 0;
+}
+
+float Shape::D(glm::vec3 m, glm::vec3 N){
+    return Kai(dot(m,N)) * ((material->alpha + 2) / (2*M_PI)) * pow(dot(m,N),material->alpha);
+}
+
+float Shape::G(glm::vec3 omegaI, glm::vec3 omegaO, glm::vec3 m, glm::vec3 N){
+    return G1(omegaI, m, N) * G1(omegaO, m, N);
+}
+float Shape::G1(glm::vec3 v, glm::vec3 m, glm::vec3 N){
+
+    const float vN = dot(v, N);
+    if (vN) return 1.0f;
+
+    const float tanThetaV = sqrt(1.0 - pow(vN, 2)) / vN;
+
+    if (abs(tanThetaV) < 0.0001f) return 1.0f; //TODO: make sure ok
+
+    const float a = sqrt(material->alpha / 2 + 1) / tanThetaV;
+
+    const float kaiTerm = Kai(dot(v, m) / vN);
+    if (a > 1.6) return kaiTerm;
+
+    return kaiTerm * (3.535 * a + 2.181 * pow(a, 2)) / (1.0 + 2.276 * a + 2.577 * pow(a, 2));
+}
+
+glm::vec3 Shape::F(float d) {
+    return material->Ks + ((1.0f - material->Ks) * (float)pow(1 - abs(d), 5));
 }
 
 Color Shape::EvalRadiance() {

@@ -191,18 +191,18 @@ Color Scene::TracePath(Ray r) {
         Intersection I = TraceRay(Ray(P.point, omegaI));
 
         if (p > 0 && !I.miss && SamePoint(L,I)) {
-            const glm::vec3 f = P.shape->EvalScattering(N, omegaI);
+            const glm::vec3 f = P.shape->EvalScattering(omegaO, N, omegaI);
             C += 0.5f * W * f/p * L.shape->EvalRadiance();
         }
 
         // Extend path
-        omegaI = glm::normalize(P.shape->SampleBrdf(N));
+        omegaI = glm::normalize(P.shape->SampleBrdf(omegaO, N));
         Intersection Q = TraceRay(Ray(P.point, omegaI));
 
         if (Q.miss) break; 
 
-        const glm::vec3 f = P.shape->EvalScattering(N, omegaI);
-        p = P.shape->PdfBrdf(N, omegaI) * RUSSIAN_ROULETTE;
+        const glm::vec3 f = P.shape->EvalScattering(omegaO, N, omegaI);
+        p = P.shape->PdfBrdf(omegaO, N, omegaI) * RUSSIAN_ROULETTE;
 
         if (p < EPSILON) break;
 

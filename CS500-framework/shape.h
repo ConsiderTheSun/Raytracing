@@ -57,11 +57,20 @@ public:
 
 	Material * material;
 
-	glm::vec3 SampleBrdf(glm::vec3 N);
-	float PdfBrdf(glm::vec3 N, glm::vec3 omegaI);
-	glm::vec3 EvalScattering(glm::vec3 N, glm::vec3 omegaI);
+	glm::vec3 SampleBrdf(glm::vec3 omegaO, glm::vec3 N);
+	float PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI);
+	glm::vec3 EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI);
 
 	virtual float Area() { std::cout << "Area not implemented for this shape" << std::endl; return 0; }
+
+	float Kai(float d);
+	float D(glm::vec3 m, glm::vec3 N);
+
+	float G(glm::vec3 omegaI, glm::vec3 omegaO, glm::vec3 m, glm::vec3 N);
+	float G1(glm::vec3 v, glm::vec3 m, glm::vec3 N);
+
+	glm::vec3 F(float d);
+
 
 	// these functions assume the shape is a light
 	Color EvalRadiance();
