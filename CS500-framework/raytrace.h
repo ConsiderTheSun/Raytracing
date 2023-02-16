@@ -85,12 +85,6 @@ public:
 
     const float EPSILON = std::numeric_limits<float>::epsilon();
 
-    int misses = 0;
-    int qMisses = 0;
-    int qTotal = 0;
-    int pMisses = 0;
-    int pTotal = 0;
-
     Scene();
     void Finit();
 
@@ -117,6 +111,12 @@ public:
     float GeometryFactor(const Intersection& A, const Intersection& B);
 
     bool SamePoint(const Intersection& A, const Intersection& B);
+
+
+
+    bool isNan(Color C);
+    bool isInf(Color C);
+
     void TraceImage(Color* image, const int pass);
 
     void SetCameraData();

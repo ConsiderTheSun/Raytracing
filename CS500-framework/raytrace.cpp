@@ -177,6 +177,8 @@ Color Scene::TracePath(Ray r) {
     glm::vec3 N = P.n;
     if (P.miss) return C;
     if (P.shape->material->isLight()) return P.shape->EvalRadiance();
+
+    glm::vec3 omegaO = -r.d;
     while (AuxilaryFunctions::random() <= RUSSIAN_ROULETTE) {
         N = P.n; // check if normal
 
@@ -197,26 +199,13 @@ Color Scene::TracePath(Ray r) {
         omegaI = glm::normalize(P.shape->SampleBrdf(N));
         Intersection Q = TraceRay(Ray(P.point, omegaI));
 
-        if (dot(omegaI, N) < 0) {
-            std::cout << "dot(omegaI, N): " << dot(omegaI, N) << std::endl;
-        }
-
-        qTotal++;
-        if (Q.miss) { 
-            qMisses++;
-            //std::cout << "Q missed" << std::endl;
-            break; 
-        }
+        if (Q.miss) break; 
 
         const glm::vec3 f = P.shape->EvalScattering(N, omegaI);
         p = P.shape->PdfBrdf(N, omegaI) * RUSSIAN_ROULETTE;
 
-        pTotal++;
-        if (p < EPSILON) {
-            pMisses++;        
-            //std::cout << "p is too small!" << std::endl;
-            break;
-        }
+        if (p < EPSILON) break;
+
 
         W *= f / p;
 
@@ -225,12 +214,9 @@ Color Scene::TracePath(Ray r) {
             break;
         }
         P = Q;
+        omegaO = -omegaI;
     }
 
-    if (C == Color(0, 0, 0)) {
-        misses++;
-        //std::cout << "missed w/" << tries << " tries" << std::endl;
-    }
     return C;
 }
 
@@ -254,11 +240,17 @@ float Scene::GeometryFactor(const Intersection& A, const Intersection& B) {
 
 bool Scene::SamePoint(const Intersection& A, const Intersection& B) {
     glm::vec3 diff = A.point - B.point;
-    //std::cout << sqrt(pow(diff.x, 2) + pow(diff.y, 2) + pow(diff.z, 2)) << std::endl;
-    return A.shape == B.shape;//&& dot(diff, diff) < 0.3f;
+    return A.shape == B.shape;
 }
 
 
+bool Scene::isNan(Color C) {
+    return std::isnan(C.r) || std::isnan(C.g) || std::isnan(C.b);
+}
+
+bool Scene::isInf(Color C) {
+    return std::isinf(C.r) || std::isinf(C.g) || std::isinf(C.b);
+}
 
 void Scene::TraceImage(Color* image, const int pass){
 
@@ -273,29 +265,13 @@ void Scene::TraceImage(Color* image, const int pass){
                 const glm::vec2 d = glm::vec2(2 * (x + AuxilaryFunctions::random()) / width - 1,
                     2 * (y +AuxilaryFunctions::random()) / height - 1);
                 const Ray r = Ray(sceneCam.eye, normalize(d.x * X + d.y * Y - Z));
-
-                image[y * width + x] += TracePath(r);
+                Color C = TracePath(r);
+                if (!isNan(C) && !isInf(C)) {
+                    image[y * width + x] += C;
+                }
             }
         }
     }
-
-    std::cout << "total number of misses: " << misses << std::endl;
-    std::cout << "total number of rays: " << width * height * pass << std::endl;
-    std::cout << "avg: " << (float)misses / (width * height * pass) << std::endl;
-
-    std::cout << "total number of Q misses: " << qMisses << std::endl;
-    std::cout << "Q average: " << (float)qMisses / qTotal << std::endl;
-
-
-    std::cout << "total number of P misses: " << pMisses << std::endl;
-    std::cout << "P average: " << (float)pMisses / pTotal << std::endl;
-
-    misses = 0;
-    qMisses = 0;
-    qTotal = 0;
-    pMisses = 0;
-    pTotal = 0;
-
 }
 
 
