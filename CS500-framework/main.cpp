@@ -120,10 +120,13 @@ int main(int argc, char** argv)
     // uses realtime to set the camera data
     scene->SetCameraData();
 
-    //std::array<int, 6> occasionally = { 0, 1, 8, 64, 512, 4096 };
-    std::array<int, 5> occasionally = { 0, 1, 8, 64, 512 };
+    std::array<int, 6> occasionally = { 0, 1, 8, 64, 512, 4096 };
+    //std::array<int, 5> occasionally = { 0, 1, 8, 64, 512 };
     //std::array<int, 4> occasionally = { 0, 1, 8, 64 };
     //std::array<int, 3> occasionally = { 0, 1, 8 };
+
+    //std::array<int, 3> occasionally = { 0, 64, 512 };
+
 
     std::chrono::time_point<std::chrono::high_resolution_clock> start = 
         std::chrono::high_resolution_clock::now();

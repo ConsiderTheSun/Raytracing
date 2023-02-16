@@ -177,14 +177,14 @@ Color Scene::TracePath(Ray r) {
     glm::vec3 N = P.n;
     if (P.miss) return C;
     if (P.shape->material->isLight()) return P.shape->EvalRadiance();
-
     while (AuxilaryFunctions::random() <= RUSSIAN_ROULETTE) {
-        N = P.n;
+        N = P.n; // check if normal
 
         // Explicit light connection
         Intersection L = SampleLight();
         float p = PdfLight(L) / GeometryFactor(P,L);
-        glm::vec3 omegaI = L.point - P.point;
+        glm::vec3 omegaI = glm::normalize(L.point - P.point);
+
 
         Intersection I = TraceRay(Ray(P.point, omegaI));
 
@@ -194,15 +194,29 @@ Color Scene::TracePath(Ray r) {
         }
 
         // Extend path
-        omegaI = P.shape->SampleBrdf(N);
+        omegaI = glm::normalize(P.shape->SampleBrdf(N));
         Intersection Q = TraceRay(Ray(P.point, omegaI));
 
-        if (Q.miss) break;
+        if (dot(omegaI, N) < 0) {
+            std::cout << "dot(omegaI, N): " << dot(omegaI, N) << std::endl;
+        }
+
+        qTotal++;
+        if (Q.miss) { 
+            qMisses++;
+            //std::cout << "Q missed" << std::endl;
+            break; 
+        }
 
         const glm::vec3 f = P.shape->EvalScattering(N, omegaI);
         p = P.shape->PdfBrdf(N, omegaI) * RUSSIAN_ROULETTE;
 
-        if (p < EPSILON) break;
+        pTotal++;
+        if (p < EPSILON) {
+            pMisses++;        
+            //std::cout << "p is too small!" << std::endl;
+            break;
+        }
 
         W *= f / p;
 
@@ -211,6 +225,11 @@ Color Scene::TracePath(Ray r) {
             break;
         }
         P = Q;
+    }
+
+    if (C == Color(0, 0, 0)) {
+        misses++;
+        //std::cout << "missed w/" << tries << " tries" << std::endl;
     }
     return C;
 }
@@ -230,13 +249,13 @@ Intersection Scene::SampleLight() {
 
 float Scene::GeometryFactor(const Intersection& A, const Intersection& B) {
     const glm::vec3 D = A.point - B.point;
-    return abs(dot(A.n, D) * dot(B.n, D) / pow(dot(D, D), 2));
+    return abs( dot(A.n, D) * dot(B.n, D) / pow(dot(D, D), 2) );
 }
 
 bool Scene::SamePoint(const Intersection& A, const Intersection& B) {
     glm::vec3 diff = A.point - B.point;
     //std::cout << sqrt(pow(diff.x, 2) + pow(diff.y, 2) + pow(diff.z, 2)) << std::endl;
-    return A.shape == B.shape && dot(diff, diff) < 0.1f; //TODO: this doesn't seem right
+    return A.shape == B.shape;//&& dot(diff, diff) < 0.3f;
 }
 
 
@@ -259,6 +278,24 @@ void Scene::TraceImage(Color* image, const int pass){
             }
         }
     }
+
+    std::cout << "total number of misses: " << misses << std::endl;
+    std::cout << "total number of rays: " << width * height * pass << std::endl;
+    std::cout << "avg: " << (float)misses / (width * height * pass) << std::endl;
+
+    std::cout << "total number of Q misses: " << qMisses << std::endl;
+    std::cout << "Q average: " << (float)qMisses / qTotal << std::endl;
+
+
+    std::cout << "total number of P misses: " << pMisses << std::endl;
+    std::cout << "P average: " << (float)pMisses / pTotal << std::endl;
+
+    misses = 0;
+    qMisses = 0;
+    qTotal = 0;
+    pMisses = 0;
+    pTotal = 0;
+
 }
 
 

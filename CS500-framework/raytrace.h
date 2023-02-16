@@ -85,8 +85,6 @@ public:
 
     const float EPSILON = std::numeric_limits<float>::epsilon();
 
-
-
     Scene();
     void Finit();
 

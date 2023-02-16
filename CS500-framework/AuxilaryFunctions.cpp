@@ -10,7 +10,7 @@ glm::vec3 AuxilaryFunctions::SampleLobe(glm::vec3 A, float c, float phi) {
     if (abs(A.z - 1) < 0.001) return K; // A==Z so no rotation
     if (abs(A.z + 1) < 0.001) return glm::vec3(K.x, -K.y, -K.z); // A==-Z so rotate 180 around X axis
 
-    if (dot(A, A) > 1.001 || dot(A, A) > 1.001) {
+    if (dot(A, A) > 1.001 || dot(A, A) <  0.999) {
         std::cout << "WARNING: A NOT NORMAL!!!" << std::endl;
         A = normalize(A);
     }
