@@ -85,6 +85,12 @@ public:
 
     const float EPSILON = std::numeric_limits<float>::epsilon();
 
+    int misses = 0;
+    int qMisses = 0;
+    int qTotal = 0;
+    int pMisses = 0;
+    int pTotal = 0;
+
     Scene();
     void Finit();
 
