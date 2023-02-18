@@ -26,12 +26,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-// A good quality *thread-safe* Mersenne Twister random number generator.
-#include <random>
-std::random_device device;
-std::mt19937_64 RNGen(device());
-std::uniform_real_distribution<> myrandom(0.0, 1.0);
-// Call myrandom(RNGen) to get a uniformly distributed random number in [0,1].
+
 
 Scene::Scene() { 
     realtime = new Realtime(); 
@@ -167,7 +162,7 @@ void Scene::Command(const std::vector<std::string>& strings,
 Intersection Scene::TraceRay(Ray r) {
     return aBvh->intersect(r);
 }
-
+glm::vec3 maxF = glm::vec3(0, 0, 0);
 Color Scene::TracePath(Ray r) {
     Color C = Color(0, 0, 0);// Accumulated light
     glm::vec3 W(1, 1, 1);// Accumulated weight
@@ -179,6 +174,8 @@ Color Scene::TracePath(Ray r) {
     if (P.shape->material->isLight()) return P.shape->EvalRadiance();
 
     glm::vec3 omegaO = -r.d;
+
+    
     while (AuxilaryFunctions::random() <= RUSSIAN_ROULETTE) {
         N = P.n; // check if normal
 
@@ -206,7 +203,11 @@ Color Scene::TracePath(Ray r) {
 
         if (p < EPSILON) break;
 
-
+        if (maxF.x < f.x) {
+            maxF = f;
+            std::cout << "f: " << glm::to_string(f) << " p: " << p << " f/p: " << glm::to_string(f / p) << std::endl;
+        }
+        
         W *= f / p;
 
         if (Q.shape->material->isLight()) {
@@ -268,6 +269,9 @@ void Scene::TraceImage(Color* image, const int pass){
                 Color C = TracePath(r);
                 if (!isNan(C) && !isInf(C)) {
                     image[y * width + x] += C;
+                }
+                else if (isInf(C)) {
+                    std::cout << "infy: " << glm::to_string(C) << std::endl;
                 }
             }
         }

@@ -1,5 +1,11 @@
 #include "AuxilaryFunctions.h"
 
+// A good quality *thread-safe* Mersenne Twister random number generator.
+#include <random>
+std::random_device device;
+std::mt19937_64 RNGen(device());
+std::uniform_real_distribution<> myrandom(0.0, 1.0);
+// Call myrandom(RNGen) to get a uniformly distributed random number in [0,1].
 
 glm::vec3 AuxilaryFunctions::SampleLobe(glm::vec3 A, float c, float phi) {
     const float s = sqrt(1 - pow(c, 2));
@@ -21,3 +27,7 @@ glm::vec3 AuxilaryFunctions::SampleLobe(glm::vec3 A, float c, float phi) {
 }
 
 
+float AuxilaryFunctions::random(float min, float max) {
+    return (max - min) * myrandom(RNGen) + min;
+    //return static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (max - min))) + min;
+}

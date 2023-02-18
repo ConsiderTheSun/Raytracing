@@ -136,24 +136,28 @@ glm::vec3 Shape::SampleBrdf(glm::vec3 omegaO, glm::vec3 N){
     }
     // reflection
     else {
-        const float cosThetaM = pow(xi1, 1/(material->alpha)); // TODO: make sure this is the right alpha
+        const float cosThetaM = pow(xi1, 1.0f/(material->alpha+1)); // TODO: make sure this is the right alpha
         const glm::vec3 m = AuxilaryFunctions::SampleLobe(N, cosThetaM, 2 * M_PI * xi2);
 
         return 2.0f * abs(dot(omegaO, m)) * m - omegaO;
     }
-    
-
-    
 }
 
 float Shape::PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
-    glm::vec3 m = normalize(omegaO + omegaI);
+    const glm::vec3 m = normalize(omegaO + omegaI);
 
     float pd = glm::length(material->Kd);
-    float pr = 1.0f - pd;
+    pd /= (pd + glm::length(material->Ks));
 
-    float Pd = abs(dot(omegaO, N)) / M_PI;
-    float Pr = D(m,N) * abs(dot(m, N)) / (4 * abs(dot(omegaI, m)));
+    const float pr = 1.0f - pd;
+
+    if (pd < 0 || pd > 1) {
+        std::cout << "pd: " << pd << " pr: " << pr << " sum: " << pd + pr << std::endl;
+    }
+
+
+    const float Pd = abs(dot(omegaO, N)) / M_PI;
+    const float Pr = D(m,N) * abs(dot(m, N)) / (4 * abs(dot(omegaI, m)));
 
     return pd*Pd + pr*Pr;
 }
@@ -181,11 +185,11 @@ float Shape::G(glm::vec3 omegaI, glm::vec3 omegaO, glm::vec3 m, glm::vec3 N){
 float Shape::G1(glm::vec3 v, glm::vec3 m, glm::vec3 N){
 
     const float vN = dot(v, N);
-    if (vN) return 1.0f;
+    if (vN > 1.0f) return 1.0f;
 
     const float tanThetaV = sqrt(1.0 - pow(vN, 2)) / vN;
 
-    if (abs(tanThetaV) < 0.0001f) return 1.0f; //TODO: make sure ok
+    if (tanThetaV < 0.0001f) return 1.0f; //TODO: make sure ok
 
     const float a = sqrt(material->alpha / 2 + 1) / tanThetaV;
 
