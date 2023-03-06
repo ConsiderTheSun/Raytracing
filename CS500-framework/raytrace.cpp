@@ -151,7 +151,48 @@ void Scene::Command(const std::vector<std::string>& strings,
                           *toMat4(Orientation(6,strings,f));
         ReadAssimpFile(strings[1], modelTr);  }
 
-    
+    else if (c == "union") {
+        Shape* obj2 = shapeList.back();
+        shapeList.pop_back();
+        Shape* obj1 = shapeList.back();
+        shapeList.pop_back();
+        shapeList.push_back(new Union(obj1, obj2, currentMat));
+    }
+    else if (c == "intersect") {
+        Shape* obj2 = shapeList.back();
+        shapeList.pop_back();
+        Shape* obj1 = shapeList.back();
+        shapeList.pop_back();
+        shapeList.push_back(new Intersect(obj1, obj2, currentMat));
+    }
+    else if (c == "difference") {
+        Shape* obj2 = shapeList.back();
+        shapeList.pop_back();
+        Shape* obj1 = shapeList.back();
+        shapeList.pop_back();
+        shapeList.push_back(new Difference(obj1, obj2, currentMat));
+    }
+
+    else if (c == "torus") {
+        // syntax: torus x y z R r
+
+        realtime->cylinder(vec3(f[1], f[2], f[3]-f[5]), vec3(0,0, 2*f[5]), f[4]+f[5], currentMat);
+        realtime->cylinder(vec3(f[1], f[2], f[3]-f[5]), vec3(0,0, 2*f[5]), f[4]-f[5], currentMat);
+        Shape* s = new Torus(vec3(f[1], f[2], f[3]), f[4], f[5], currentMat);
+        if (currentMat->isLight()) lightList.push_back(s);
+        shapeList.push_back(s);
+    }
+
+    else if (c == "cone") {
+    // syntax: cone x y z h theta
+
+    realtime->cylinder(vec3(f[1], f[2], f[3]+ f[4]/2), vec3(0, 0, f[4]), f[5], currentMat);
+    Shape* s = new Cone(vec3(f[1], f[2], f[3]),f[4], f[5], currentMat);
+    if (currentMat->isLight()) lightList.push_back(s);
+    shapeList.push_back(s);
+    }
+
+
     else {
         fprintf(stderr, "\n*********************************************\n");
         fprintf(stderr, "* Unknown command: %s\n", c.c_str());
@@ -162,6 +203,7 @@ void Scene::Command(const std::vector<std::string>& strings,
 Intersection Scene::TraceRay(Ray r) {
     return aBvh->intersect(r);
 }
+
 glm::vec3 maxF = glm::vec3(0, 0, 0);
 Color Scene::TracePath(Ray r) {
     Color C = Color(0, 0, 0);// Accumulated light
@@ -173,11 +215,11 @@ Color Scene::TracePath(Ray r) {
     if (P.miss) return C;
     if (P.shape->material->isLight()) return P.shape->EvalRadiance();
 
-    glm::vec3 omegaO = -r.d;
+    glm::vec3 omegaO = glm::normalize( - r.d);
 
     
     while (AuxilaryFunctions::random() <= RUSSIAN_ROULETTE) {
-        N = P.n; // check if normal
+        N = glm::normalize(P.n);
 
         // Explicit light connection
         Intersection L = SampleLight();
@@ -227,7 +269,7 @@ Intersection Scene::SampleLight() {
     Sphere* lightChoice = dynamic_cast<Sphere*>(lightList[index]);
 
     if (!lightChoice) {
-        std::cout << "ERROR: light not a sphere!!!" << std::endl;
+        std::cerr << "ERROR: light not a sphere!!!" << std::endl;
         return Intersection();
     }
 
@@ -241,7 +283,7 @@ float Scene::GeometryFactor(const Intersection& A, const Intersection& B) {
 
 bool Scene::SamePoint(const Intersection& A, const Intersection& B) {
     glm::vec3 diff = A.point - B.point;
-    return A.shape == B.shape;
+    return A.shape == B.shape && glm::length2(diff) < EPSILON;//&& A.point == B.point;
 }
 
 

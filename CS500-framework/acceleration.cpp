@@ -11,7 +11,7 @@
 #include "raytrace.h"
 
 
-const float EPSILON = std::numeric_limits<float>::epsilon();
+constexpr float EPSILON = 0.001;
 /////////////////////////////
 // Vector and ray conversions
 Ray RayFromBvh(const bvh::Ray<float> &r)
@@ -136,7 +136,7 @@ glm::vec3 Shape::SampleBrdf(glm::vec3 omegaO, glm::vec3 N){
     }
     // reflection
     else {
-        const float cosThetaM = pow(xi1, 1.0f/(material->alpha+1)); // TODO: make sure this is the right alpha
+        const float cosThetaM = pow(xi1, 1.0f/(material->alpha+1));
         const glm::vec3 m = AuxilaryFunctions::SampleLobe(N, cosThetaM, 2 * M_PI * xi2);
 
         return 2.0f * abs(dot(omegaO, m)) * m - omegaO;
@@ -165,10 +165,27 @@ glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI)
     const glm::vec3 m = normalize(omegaO + omegaI);
 
     const glm::vec3 Ed = material->Kd / M_PI;
-    const glm::vec3 Er = ( D(m,N) * G(omegaI, omegaO, m, N) * F(dot(omegaI, m)) )
+    const glm::vec3 Er = ( D(m,N) * G(omegaI, omegaO, m, N) * F(glm::normalize(dot(omegaI, m))) )
                  / ( 4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N)) );
-    
-    return abs(dot(N, omegaI)) * (Ed + Er);
+    //TODO: normalize whats passed into the F
+
+    float aaaa = glm::length(omegaO);
+    float aaa = glm::length(N);
+    float aa = glm::length(omegaI);
+    //std::cout << D(m, N) << std::endl;
+    float d = D(m, N);
+    float g = G(omegaI, omegaO, m, N);
+    glm::vec3 f = F(dot(omegaI, m));
+
+    float denom = 4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N));
+
+    glm::vec3 retVal = abs(dot(N, omegaI)) * (Ed + Er);
+    //retVal *=  abs(dot(omegaO, N));
+
+    if (retVal.x > 300) {
+        //std::cout << "afwadfe" << std::endl;
+    }
+    return retVal;
 }
 float Shape::Kai(float d) {
     if (d > 0) return 1;
@@ -176,6 +193,18 @@ float Shape::Kai(float d) {
 }
 
 float Shape::D(glm::vec3 m, glm::vec3 N){
+    float mN = dot(m, N);
+    float a = Kai(dot(m, N));
+    float aa = (material->alpha + 2) / (2 * M_PI);
+    float aaa = pow(dot(m, N), material->alpha);
+
+    float ans = Kai(dot(m, N)) * ((material->alpha + 2) / (2 * M_PI)) * pow(dot(m, N), material->alpha);
+    if (ans > 200) {
+        //std::cout << a << std::endl;
+    }
+
+
+
     return Kai(dot(m,N)) * ((material->alpha + 2) / (2*M_PI)) * pow(dot(m,N),material->alpha);
 }
 
@@ -189,7 +218,7 @@ float Shape::G1(glm::vec3 v, glm::vec3 m, glm::vec3 N){
 
     const float tanThetaV = sqrt(1.0 - pow(vN, 2)) / vN;
 
-    if (tanThetaV < 0.0001f) return 1.0f; //TODO: make sure ok
+    if (tanThetaV < EPSILON) return 1.0f; //TODO: make sure ok
 
     const float a = sqrt(material->alpha / 2 + 1) / tanThetaV;
 
@@ -394,6 +423,61 @@ Intersection Tri::intersect(Ray r) {
 };
 
 
+Intersection RayMarchShape::intersect(Ray r) {
+    
+
+    float t = 0.01;
+    for (int stepCount = 0; true; ++stepCount) {
+        const glm::vec3 P = r.o + r.d * t;
+        const float dt = this->distance(P);
+
+        t += abs(dt);
+
+        // termination conditions
+
+        if (abs(dt) < 0.00001) break;
+        if (stepCount > 2500) return Intersection();
+        if(t >= 10000) return Intersection();
+    }
+
+    if(t<0.01) return Intersection();
+
+    // normal calculation
+    const glm::vec3 P = r.o + r.d * t;
+    const float h = 0.01;
+    const float nx = distance(P + glm::vec3(h, 0, 0)) - distance(P - glm::vec3(h, 0, 0));
+    const float ny = distance(P + glm::vec3(0, h, 0)) - distance(P - glm::vec3(0, h, 0));
+    const float nz = distance(P + glm::vec3(0, 0, h)) - distance(P - glm::vec3(0, 0, h));
+
+    const glm::vec3 N = glm::normalize(glm::vec3(nx, ny, nz));
+
+    return Intersection(this, t, N, P);
+}
+
+
+
+
+float Sphere::distance(const glm::vec3& P) const{
+    return glm::length(P - center) - radius;
+}
+
+float Box::distance(const glm::vec3& P) const {
+    glm::vec3 max = corner + diagonal;
+    return std::max(P.x - max.x, 
+        std::max(corner.x - P.x, 
+            std::max(P.y - max.y, 
+                std::max(corner.y - P.y, 
+                    std::max(P.z - max.z, corner.z - P.z)))));
+}
+
+float Cone::distance(const glm::vec3& P) const {
+    glm::vec3 p = P - center;
+    float infCone = glm::length(glm::vec2(p.x, p.y)) * cos(theta) - abs(p.z) * sin(theta);
+    float cutoff = -height - p.z;
+
+    return std::max(infCone, cutoff);
+    return infCone;
+}
 
 std::vector<glm::vec3> Sphere::pointList() {
     std::vector<glm::vec3> pointList;
@@ -430,6 +514,36 @@ std::vector<glm::vec3> Tri::pointList() {
 
     return pointList;
 }
+
+std::vector<glm::vec3> Torus::pointList() {
+    std::vector<glm::vec3> pointList;
+    pointList.push_back(center + glm::vec3(R,R,R) + glm::vec3(r,r,r));
+    pointList.push_back(center - glm::vec3(R,R,R) - glm::vec3(r,r,r));
+
+    pointList.push_back(center + glm::vec3(0, r, 0));
+    pointList.push_back(center - glm::vec3(0, r, 0));
+
+    return pointList;
+}
+
+
+std::vector<glm::vec3> Cone::pointList() {
+    std::vector<glm::vec3> pointList;
+    pointList.push_back(center);
+
+    float radius = height * tan(theta);
+    pointList.push_back(center + glm::vec3(radius));
+    pointList.push_back(center - glm::vec3(radius));
+    pointList.push_back(center - height + glm::vec3(radius));
+    pointList.push_back(center - height - glm::vec3(radius));
+
+    pointList.push_back(glm::vec3(1000,1000,1000)); // TODO: Remove this when bounding works
+
+    return pointList;
+}
+
+
+
 
 
 Intersection Sphere::SampleSphere() {

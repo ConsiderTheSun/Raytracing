@@ -83,7 +83,7 @@ public:
 
     const float RUSSIAN_ROULETTE = 0.8f;
 
-    const float EPSILON = std::numeric_limits<float>::epsilon();
+    const float EPSILON = 0.001;
 
     Scene();
     void Finit();

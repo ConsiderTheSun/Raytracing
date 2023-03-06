@@ -98,10 +98,16 @@ void WriteHdrImage(const std::string outName, const int width, const int height,
 ////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv)
 {
+    std::string default = "testscene.scn";
+    //std::string default = "sdf.scn";
+    //std::cout << "scene: ";
+    //std::cin >> default;
+
+
     Scene* scene = new Scene();
 
     // Read the command line argument
-    std::string inName =  (argc > 1) ? argv[1] : "testscene.scn";
+    std::string inName =  (argc > 1) ? argv[1] : default;
     std::string hdrBaseName = inName.substr(0, inName.size() - 4);
 
     //hdrBaseName.replace(hdrName.size()-3, hdrName.size(), "hdr");

@@ -31,7 +31,7 @@ struct MeshData
 class Ray {
 public:
 	vec3 o, d;
-	Ray(const vec3 _o, const vec3 _d) : o(_o), d(_d) {}
+	Ray(const vec3 _o, const vec3 _d) : o(_o), d(glm::normalize(_d)) {}
 };
 class Shape;
 
@@ -50,6 +50,8 @@ public:
 class Shape {
 public:
 	virtual Intersection intersect(Ray r)=0;
+	virtual float distance(const glm::vec3& P) const { return 100000; }; // TODO: make pure virtual
+
 	virtual std::vector<glm::vec3> pointList()=0;
 
 	Shape() :material(NULL) {}
@@ -76,6 +78,7 @@ public:
 	Color EvalRadiance();
 };
 
+
 struct Interval {
 	Interval(float _t0=0, float _t1= std::numeric_limits<float>::infinity(), 
 		glm::vec3 _n0=glm::vec3(), glm::vec3 _n1=glm::vec3()) : t0(_t0), t1(_t1), n0(_n0), n1(_n1) {}
@@ -101,6 +104,8 @@ public:
 	glm::vec3 getCenter() { return center; }
 
 	Intersection intersect(Ray r);
+	float distance(const glm::vec3& P) const;
+
 	std::vector<glm::vec3> pointList();
 
 	Intersection SampleSphere();
@@ -119,6 +124,8 @@ public:
 	Box(glm::vec3 c, glm::vec3 d, Material* m) :corner(c), diagonal(d), Shape(m) {}
 
 	Intersection intersect(Ray r);
+	float distance(const glm::vec3& P) const;
+
 	std::vector<glm::vec3> pointList();
 private:
 	glm::vec3 corner;
@@ -146,6 +153,91 @@ public:
 	std::vector<glm::vec3> pointList();
 private:
 	MeshData* mesh;
+};
+
+
+class RayMarchShape : public Shape {
+public:
+	RayMarchShape(Material* m) :Shape(m) {}
+	Intersection intersect(Ray r);
+	virtual float distance(const glm::vec3& P) const override = 0;
+};
+
+
+class Union : public RayMarchShape {
+	Shape* A;
+	Shape* B;
+public:
+	Union(Shape* _A, Shape* _B, Material* m) : A(_A), B(_B), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override{
+		return std::min(A->distance(P), B->distance(P));
+	}
+
+	std::vector<glm::vec3> pointList() {
+		std::vector<glm::vec3> ABList = A->pointList();
+		std::vector<glm::vec3> BList = B->pointList();
+		ABList.insert(ABList.end(), BList.begin(), BList.end());
+		return ABList;
+	}
+};
+
+class Intersect : public RayMarchShape {
+	Shape* A;
+	Shape* B;
+public:
+	Intersect(Shape* _A, Shape* _B, Material* m) : A(_A), B(_B), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override {
+		return std::max(A->distance(P), B->distance(P));
+	}
+
+	std::vector<glm::vec3> pointList() {
+		std::vector<glm::vec3> ABList = A->pointList();
+		std::vector<glm::vec3> BList = B->pointList();
+		ABList.insert(ABList.end(), BList.begin(), BList.end());
+		return ABList;
+	}
+};
+
+class Difference : public RayMarchShape {
+	Shape* A;
+	Shape* B;
+public:
+	Difference(Shape* _A, Shape* _B, Material* m) : A(_A), B(_B), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override {
+		return std::max(A->distance(P), -B->distance(P));
+	}
+
+	std::vector<glm::vec3> pointList() {
+		std::vector<glm::vec3> ABList = A->pointList();
+		std::vector<glm::vec3> BList = B->pointList();
+		ABList.insert(ABList.end(), BList.begin(), BList.end());
+		return ABList;
+	}
+};
+
+class Torus : public RayMarchShape{
+	glm::vec3 center;
+	float R, r;
+
+public:
+	Torus(glm::vec3 c, float _R, float _r, Material* m) : center(c), R(_R), r(_r), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override {
+		glm::vec3 p = P - center;
+		float m = sqrt(p.x * p.x + p.y * p.y) - R;
+		return sqrt(m * m + p.z * p.z) - r;
+	}
+	std::vector<glm::vec3> pointList();
+
+};
+
+class Cone : public RayMarchShape {
+	glm::vec3 center;
+	float height, theta;
+
+public:
+	Cone(glm::vec3 c, float h, float _theta, Material* m) : center(c), height(h),theta(_theta), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
 };
 
 #endif
