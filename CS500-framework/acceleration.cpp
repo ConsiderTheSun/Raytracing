@@ -121,6 +121,8 @@ Intersection AccelerationBvh::intersect(const Ray& ray)
 //////////////////////////////////////////////////////////
 
 
+//#define GGX
+
 
 glm::vec3 Shape::SampleBrdf(glm::vec3 omegaO, glm::vec3 N){
 
@@ -136,7 +138,12 @@ glm::vec3 Shape::SampleBrdf(glm::vec3 omegaO, glm::vec3 N){
     }
     // reflection
     else {
+#ifdef GGX
+        const float cosThetaM = cos(atan2( material->alpha*sqrt(xi1) , sqrt(1-xi1) ));
+#else
         const float cosThetaM = pow(xi1, 1.0f/(material->alpha+1));
+#endif
+
         const glm::vec3 m = AuxilaryFunctions::SampleLobe(N, cosThetaM, 2 * M_PI * xi2);
 
         return 2.0f * abs(dot(omegaO, m)) * m - omegaO;
@@ -167,7 +174,6 @@ glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI)
     const glm::vec3 Ed = material->Kd / M_PI;
     const glm::vec3 Er = ( D(m,N) * G(omegaI, omegaO, m, N) * F(glm::normalize(dot(omegaI, m))) )
                  / ( 4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N)) );
-    //TODO: normalize whats passed into the F
 
     float aaaa = glm::length(omegaO);
     float aaa = glm::length(N);
@@ -187,6 +193,7 @@ glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI)
     }
     return retVal;
 }
+
 float Shape::Kai(float d) {
     if (d > 0) return 1;
     else       return 0;
@@ -203,9 +210,18 @@ float Shape::D(glm::vec3 m, glm::vec3 N){
         //std::cout << a << std::endl;
     }
 
+#ifdef GGX
+        const float ag2 = pow(material->alpha, 2);
+        const float tan2ThetaM = pow(sqrt(1.0f - pow(dot(m, N), 2)) / dot(m, N), 2);
+        const float ggxD = Kai(dot(m, N)) * ag2 /
+            (M_PI * pow(dot(N, m),4) * pow(ag2+ tan2ThetaM,2));
+        return ggxD;
+#else
+    const float phongD = Kai(dot(m, N)) * ((material->alpha + 2) / (2 * M_PI)) * pow(dot(m, N), material->alpha);
+    return phongD;
+#endif
 
-
-    return Kai(dot(m,N)) * ((material->alpha + 2) / (2*M_PI)) * pow(dot(m,N),material->alpha);
+    
 }
 
 float Shape::G(glm::vec3 omegaI, glm::vec3 omegaO, glm::vec3 m, glm::vec3 N){
@@ -213,19 +229,24 @@ float Shape::G(glm::vec3 omegaI, glm::vec3 omegaO, glm::vec3 m, glm::vec3 N){
 }
 float Shape::G1(glm::vec3 v, glm::vec3 m, glm::vec3 N){
 
+    // round off error checks
     const float vN = dot(v, N);
     if (vN > 1.0f) return 1.0f;
 
     const float tanThetaV = sqrt(1.0 - pow(vN, 2)) / vN;
-
-    if (tanThetaV < EPSILON) return 1.0f; //TODO: make sure ok
-
-    const float a = sqrt(material->alpha / 2 + 1) / tanThetaV;
+    if (tanThetaV < EPSILON) return 1.0f;
 
     const float kaiTerm = Kai(dot(v, m) / vN);
+
+#ifdef GGX
+    const float ag2 = pow(material->alpha, 2);
+    return kaiTerm * 2 / (1 + sqrt(1 + ag2 * pow(tanThetaV, 2)));
+#else
+    const float a = sqrt(material->alpha / 2 + 1) / tanThetaV;
     if (a > 1.6) return kaiTerm;
 
     return kaiTerm * (3.535 * a + 2.181 * pow(a, 2)) / (1.0 + 2.276 * a + 2.577 * pow(a, 2));
+#endif
 }
 
 glm::vec3 Shape::F(float d) {

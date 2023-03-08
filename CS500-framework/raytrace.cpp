@@ -309,6 +309,7 @@ void Scene::TraceImage(Color* image, const int pass){
                     2 * (y +AuxilaryFunctions::random()) / height - 1);
                 const Ray r = Ray(sceneCam.eye, normalize(d.x * X + d.y * Y - Z));
                 Color C = TracePath(r);
+                
                 if (!isNan(C) && !isInf(C)) {
                     image[y * width + x] += C;
                 }
