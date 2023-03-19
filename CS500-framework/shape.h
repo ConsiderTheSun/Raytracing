@@ -61,7 +61,7 @@ public:
 
 	glm::vec3 SampleBrdf(glm::vec3 omegaO, glm::vec3 N);
 	float PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI);
-	glm::vec3 EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI);
+	glm::vec3 EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI, float attenuationDistance);
 
 	virtual float Area() { std::cout << "Area not implemented for this shape" << std::endl; return 0; }
 

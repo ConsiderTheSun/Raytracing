@@ -231,7 +231,7 @@ float Shape::PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
     return pd*Pd + pr*Pr + pt*Pt;
 }
 
-glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
+glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI, float attenuationDistance) {
     // calculates the etas
     float eta, etaI, etaO;
     if (dot(omegaO, N) > 0) {
@@ -272,7 +272,23 @@ glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI)
             / (4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N)));
     }
     if (pt > 0.001) {
-        const float attenuationFactor = 1.0f;
+        vec3 attenuationFactor;
+
+        if (dot(omegaO, N) < 0) {
+            std::cout << "attenuationDistance: " << attenuationDistance << std::endl;
+            const vec3 logKt = vec3(std::log(material->Kt.x), std::log(material->Kt.y), std::log(material->Kt.z))
+                / std::log(exp(1.0));
+            attenuationFactor = vec3(
+                pow(std::exp(1.0), attenuationDistance * logKt.x),
+                pow(std::exp(1.0), attenuationDistance * logKt.y),
+                pow(std::exp(1.0), attenuationDistance * logKt.z));
+        }
+        else {
+            attenuationFactor = vec3(1.0f);
+        }
+
+
+
         // checks for total internal reflection
         const float radicand = 1.0 - pow(eta, 2) * (1.0f - pow(dot(omegaO, mt), 2));
         // negative => tir

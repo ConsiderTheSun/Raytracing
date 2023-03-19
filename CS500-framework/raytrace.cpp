@@ -234,8 +234,9 @@ Color Scene::TracePath(Ray r) {
 
         Intersection I = TraceRay(Ray(P.point, omegaI));
 
+        float attenuationDistance = TraceRay(Ray(P.point, omegaO)).t;
         if (p > 0 && !I.miss && SamePoint(L,I)) {
-            const glm::vec3 f = P.shape->EvalScattering(omegaO, N, omegaI);
+            const glm::vec3 f = P.shape->EvalScattering(omegaO, N, omegaI, attenuationDistance);
             C += 0.5f * W * f/p * L.shape->EvalRadiance();
         }
 
@@ -245,7 +246,9 @@ Color Scene::TracePath(Ray r) {
 
         if (Q.miss) break; 
 
-        const glm::vec3 f = P.shape->EvalScattering(omegaO, N, omegaI);
+
+
+        const glm::vec3 f = P.shape->EvalScattering(omegaO, N, omegaI, attenuationDistance);
         p = P.shape->PdfBrdf(omegaO, N, omegaI) * RUSSIAN_ROULETTE;
 
         if (p < EPSILON) break;
