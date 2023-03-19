@@ -6,4 +6,7 @@ struct AuxilaryFunctions {
 
 	static float random(float min = 0, float max = 1);
 
+	static float sign(float x) {
+		return (x >= 0) ? 1 : -1;
+	}
 };

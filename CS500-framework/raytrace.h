@@ -26,15 +26,16 @@ const float Radians = PI/180.0f;    // Convert degrees to radians
 class Material
 {
  public:
-    vec3 Kd, Ks;
+    vec3 Kd, Ks, Kt;
     float alpha;
+    float ior;
     unsigned int texid;
 
     virtual bool isLight() { return false; }
 
-    Material()  : Kd(vec3(1.0, 0.5, 0.0)), Ks(vec3(1,1,1)), alpha(1.0), texid(0) {}
-    Material(const vec3 d, const vec3 s, const float a) 
-        : Kd(d), Ks(s), alpha(a), texid(0) {}
+    Material()  : Kd(vec3(1.0, 0.5, 0.0)), Ks(vec3(1)), Kt(vec3(0)), alpha(1.0), ior(1.0), texid(0) {}
+    Material(const vec3 d, const vec3 s, const float a, const vec3 t = vec3(0), const float _ior = 1.0)
+        : Kd(d), Ks(s), alpha(a), texid(0), Kt(t), ior(_ior) {}
     Material(Material& o) { Kd=o.Kd;  Ks=o.Ks;  alpha=o.alpha;  texid=o.texid; }
 
     //virtual void apply(const unsigned int program);

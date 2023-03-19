@@ -131,48 +131,166 @@ glm::vec3 Shape::SampleBrdf(glm::vec3 omegaO, glm::vec3 N){
     const float xi2 = AuxilaryFunctions::random();
 
     float pd = glm::length(material->Kd);
-    pd /= (pd + glm::length(material->Ks));
+    float pr = glm::length(material->Ks);
+    float pt = glm::length(material->Kt);
+
+    const float s = pd + pr + pt;
+
+    pd /= s;
+    pr /= s;
+    pt /= s;
+
     // diffuse 
     if (xi < pd) {
         return AuxilaryFunctions::SampleLobe(N, sqrt(xi1), 2 * M_PI * xi2);
     }
-    // reflection
-    else {
+
+    // calculates m, same for reflection and transmission
 #ifdef GGX
-        const float cosThetaM = cos(atan2( material->alpha*sqrt(xi1) , sqrt(1-xi1) ));
+    const float cosThetaM = cos(atan2(material->alpha * sqrt(xi1), sqrt(1 - xi1)));
 #else
-        const float cosThetaM = pow(xi1, 1.0f/(material->alpha+1));
+    const float cosThetaM = pow(xi1, 1.0f / (material->alpha + 1));
 #endif
 
-        const glm::vec3 m = AuxilaryFunctions::SampleLobe(N, cosThetaM, 2 * M_PI * xi2);
+    const glm::vec3 m = AuxilaryFunctions::SampleLobe(N, cosThetaM, 2 * M_PI * xi2);
 
+    // reflection
+    if(xi < pd + pr) {
         return 2.0f * abs(dot(omegaO, m)) * m - omegaO;
+    }
+    // transmission
+    else {
+        // calculates the etas
+        float eta, etaI, etaO;
+        if (dot(omegaO, N) > 0) {
+            etaI = 1.0f;
+            etaO = material->ior;
+        }
+        else {
+            etaI = material->ior;
+            etaO = 1.0f;
+        }
+        eta = etaI / etaO;
+
+        // checks for total internal reflection
+        const float radicand = 1.0 - pow(eta, 2) * (1.0f - pow(dot(omegaO, m), 2));
+        // negative => tir
+        if (radicand < 0) {
+            return 2.0f * abs(dot(omegaO, m)) * m - omegaO;
+        }
+        else {
+            return (eta*dot(omegaO,m) - AuxilaryFunctions::sign(dot(omegaO,N))*sqrt(radicand)) 
+                * m - eta*omegaO;
+        }
     }
 }
 
 float Shape::PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
-    const glm::vec3 m = normalize(omegaO + omegaI);
+    // calculates the etas
+    float eta, etaI, etaO;
+    if (dot(omegaO, N) > 0) {
+        etaI = 1.0f;
+        etaO = material->ior;
+    }
+    else {
+        etaI = material->ior;
+        etaO = 1.0f;
+    }
+    eta = etaI / etaO;
 
+    // calculates the m values
+    const glm::vec3 mr = normalize(omegaO + omegaI);
+    const glm::vec3 mt = -normalize(etaO * omegaI + etaI * omegaO);
+
+    // calculates the weights
     float pd = glm::length(material->Kd);
-    pd /= (pd + glm::length(material->Ks));
+    float pr = glm::length(material->Ks);
+    float pt = glm::length(material->Kt);
 
-    const float pr = 1.0f - pd;
+    const float s = pd + pr + pt;
+
+    pd /= s;
+    pr /= s;
+    pt /= s;
 
     const float Pd = abs(dot(omegaI, N)) / M_PI;
-    const float Pr = D(m,N) * abs(dot(m, N)) / (4 * abs(dot(omegaI, m)));
+    const float Pr = D(mr,N) * abs(dot(mr, N)) / (4 * abs(dot(omegaI, mr)));
 
-    return pd*Pd + pr*Pr;
+    // checks for total internal reflection
+    const float radicand = 1.0 - pow(eta, 2) * (1.0f - pow(dot(omegaO, mt), 2));
+    // negative => tir
+    float Pt;
+    if (radicand < 0) {
+        Pt = Pr;
+    }
+    else {
+        Pt = D(mt, N) * abs(dot(mt, N)) * pow(etaO,2) * abs(dot(omegaI,mt))
+            / pow( etaO*dot(omegaI, mt) + etaI*dot(omegaO,mt),2);
+    }
+
+    return pd*Pd + pr*Pr + pt*Pt;
 }
+
 glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
-    const glm::vec3 m = normalize(omegaO + omegaI);
+    // calculates the etas
+    float eta, etaI, etaO;
+    if (dot(omegaO, N) > 0) {
+        etaI = 1.0f;
+        etaO = material->ior;
+    }
+    else {
+        etaI = material->ior;
+        etaO = 1.0f;
+    }
+    eta = etaI / etaO;
 
-    const glm::vec3 Ed = material->Kd / M_PI;
-    const glm::vec3 Er = ( D(m,N) * G(omegaI, omegaO, m, N) * F(glm::normalize(dot(omegaI, m))) )
-                 / ( 4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N)) );
+    // calculates the m values
+    const glm::vec3 mr = normalize(omegaO + omegaI);
+    const glm::vec3 mt = -normalize(etaO * omegaI + etaI * omegaO);
 
-    float denom = 4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N));
+    // calculates the weights
+    float pd = glm::length(material->Kd);
+    float pr = glm::length(material->Ks);
+    float pt = glm::length(material->Kt);
 
-    return abs(dot(N, omegaI)) * (Ed + Er);
+    const float s = pd + pr + pt;
+
+    pd /= s;
+    pr /= s;
+    pt /= s;
+
+    // default value if prob is too low
+    vec3 Ed = vec3(0);
+    vec3 Er = vec3(0);
+    vec3 Et = vec3(0);
+
+    if (pd > 0.001) {
+        Ed = material->Kd / M_PI;
+    }
+    if (pr > 0.001) {
+        Er = (D(mr, N) * G(omegaI, omegaO, mr, N) * F(glm::normalize(dot(omegaI, mr))))
+            / (4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N)));
+    }
+    if (pt > 0.001) {
+        const float attenuationFactor = 1.0f;
+        // checks for total internal reflection
+        const float radicand = 1.0 - pow(eta, 2) * (1.0f - pow(dot(omegaO, mt), 2));
+        // negative => tir
+        if (radicand < 0) {
+
+            Et = attenuationFactor* (D(mr, N) * G(omegaI, omegaO, mr, N) * F(glm::normalize(dot(omegaI, mr))))
+                / (4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N)));
+        }
+        else {
+            Et = attenuationFactor * (D(mt, N) * G(omegaI, omegaO, mt, N) * (vec3(1)-F(glm::normalize(dot(omegaI, mt)))))
+                / (abs(dot(omegaI, N)) * abs(dot(omegaO, N)));
+            Et *= abs(dot(omegaI, mt)) * abs(dot(omegaO, mt)) * pow(etaO, 2) /
+                pow(etaO * dot(omegaI, mt) + etaI * dot(omegaO, mt), 2);
+        }
+    }
+    
+
+    return abs(dot(N, omegaI)) * (Ed + Er + Et);
 }
 
 float Shape::Kai(float d) {
