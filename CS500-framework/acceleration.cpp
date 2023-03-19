@@ -163,7 +163,7 @@ float Shape::PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
     }
 
 
-    const float Pd = abs(dot(omegaO, N)) / M_PI;
+    const float Pd = abs(dot(omegaI, N)) / M_PI;
     const float Pr = D(m,N) * abs(dot(m, N)) / (4 * abs(dot(omegaI, m)));
 
     return pd*Pd + pr*Pr;
