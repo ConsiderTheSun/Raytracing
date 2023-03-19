@@ -158,11 +158,6 @@ float Shape::PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
 
     const float pr = 1.0f - pd;
 
-    if (pd < 0 || pd > 1) {
-        std::cout << "pd: " << pd << " pr: " << pr << " sum: " << pd + pr << std::endl;
-    }
-
-
     const float Pd = abs(dot(omegaI, N)) / M_PI;
     const float Pr = D(m,N) * abs(dot(m, N)) / (4 * abs(dot(omegaI, m)));
 
@@ -175,23 +170,9 @@ glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI)
     const glm::vec3 Er = ( D(m,N) * G(omegaI, omegaO, m, N) * F(glm::normalize(dot(omegaI, m))) )
                  / ( 4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N)) );
 
-    float aaaa = glm::length(omegaO);
-    float aaa = glm::length(N);
-    float aa = glm::length(omegaI);
-    //std::cout << D(m, N) << std::endl;
-    float d = D(m, N);
-    float g = G(omegaI, omegaO, m, N);
-    glm::vec3 f = F(dot(omegaI, m));
-
     float denom = 4 * abs(dot(omegaI, N)) * abs(dot(omegaO, N));
 
-    glm::vec3 retVal = abs(dot(N, omegaI)) * (Ed + Er);
-    //retVal *=  abs(dot(omegaO, N));
-
-    if (retVal.x > 300) {
-        //std::cout << "afwadfe" << std::endl;
-    }
-    return retVal;
+    return abs(dot(N, omegaI)) * (Ed + Er);
 }
 
 float Shape::Kai(float d) {
@@ -200,16 +181,6 @@ float Shape::Kai(float d) {
 }
 
 float Shape::D(glm::vec3 m, glm::vec3 N){
-    float mN = dot(m, N);
-    float a = Kai(dot(m, N));
-    float aa = (material->alpha + 2) / (2 * M_PI);
-    float aaa = pow(dot(m, N), material->alpha);
-
-    float ans = Kai(dot(m, N)) * ((material->alpha + 2) / (2 * M_PI)) * pow(dot(m, N), material->alpha);
-    if (ans > 200) {
-        //std::cout << a << std::endl;
-    }
-
 #ifdef GGX
         const float ag2 = pow(material->alpha, 2);
         const float tan2ThetaM = pow(sqrt(1.0f - pow(dot(m, N), 2)) / dot(m, N), 2);
@@ -220,8 +191,6 @@ float Shape::D(glm::vec3 m, glm::vec3 N){
     const float phongD = Kai(dot(m, N)) * ((material->alpha + 2) / (2 * M_PI)) * pow(dot(m, N), material->alpha);
     return phongD;
 #endif
-
-    
 }
 
 float Shape::G(glm::vec3 omegaI, glm::vec3 omegaO, glm::vec3 m, glm::vec3 N){

@@ -204,7 +204,6 @@ Intersection Scene::TraceRay(Ray r) {
     return aBvh->intersect(r);
 }
 
-glm::vec3 maxF = glm::vec3(0, 0, 0);
 Color Scene::TracePath(Ray r) {
     Color C = Color(0, 0, 0);// Accumulated light
     glm::vec3 W(1, 1, 1);// Accumulated weight
@@ -244,11 +243,6 @@ Color Scene::TracePath(Ray r) {
         p = P.shape->PdfBrdf(omegaO, N, omegaI) * RUSSIAN_ROULETTE;
 
         if (p < EPSILON) break;
-
-        if (maxF.x < f.x) {
-            maxF = f;
-            std::cout << "f: " << glm::to_string(f) << " p: " << p << " f/p: " << glm::to_string(f / p) << std::endl;
-        }
         
         W *= f / p;
 
