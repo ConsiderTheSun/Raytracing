@@ -172,6 +172,12 @@ glm::vec3 Shape::SampleBrdf(glm::vec3 omegaO, glm::vec3 N){
         }
         eta = etaI / etaO;
 
+        float a = dot(omegaO, m);
+        float powy = pow(dot(omegaO, m),2);
+        float b = (1.0f - pow(dot(omegaO, m), 2));
+        float c = pow(eta, 2) * (1.0f - pow(dot(omegaO, m), 2));
+
+
         // checks for total internal reflection
         const float radicand = 1.0 - pow(eta, 2) * (1.0f - pow(dot(omegaO, m), 2));
         // negative => tir
@@ -275,7 +281,7 @@ glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI,
         vec3 attenuationFactor;
 
         if (dot(omegaO, N) < 0) {
-            std::cout << "attenuationDistance: " << attenuationDistance << std::endl;
+            //std::cout << "attenuationDistance: " << attenuationDistance << std::endl;
             const vec3 logKt = vec3(std::log(material->Kt.x), std::log(material->Kt.y), std::log(material->Kt.z))
                 / std::log(exp(1.0));
             attenuationFactor = vec3(

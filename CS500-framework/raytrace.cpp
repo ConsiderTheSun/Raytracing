@@ -229,22 +229,36 @@ Color Scene::TracePath(Ray r) {
         // Explicit light connection
         Intersection L = SampleLight();
         float p = PdfLight(L) / GeometryFactor(P,L);
+ 
         glm::vec3 omegaI = glm::normalize(L.point - P.point);
-
-
+        
+        float q = P.shape->PdfBrdf(omegaO, N, omegaI) * RUSSIAN_ROULETTE;
+        float Wmis = pow(p, 2) / (pow(p, 2) + pow(q, 2));
+        
         Intersection I = TraceRay(Ray(P.point, omegaI));
 
         float attenuationDistance = TraceRay(Ray(P.point, omegaO)).t;
         if (p > 0 && !I.miss && SamePoint(L,I)) {
             const glm::vec3 f = P.shape->EvalScattering(omegaO, N, omegaI, attenuationDistance);
-            C += 0.5f * W * f/p * L.shape->EvalRadiance();
+            C += 0.5f * W * Wmis * f/p * L.shape->EvalRadiance();
         }
 
         // Extend path
         omegaI = glm::normalize(P.shape->SampleBrdf(omegaO, N));
         Intersection Q = TraceRay(Ray(P.point, omegaI));
 
+        
+
         if (Q.miss) break; 
+
+        /*float af = dot(omegaI, omegaO);
+        if (af < 0 && Q.shape == P.shape) {
+            float aDot = dot(normalize(Q.n), normalize(-omegaI));
+            if (aDot < 0 && glm::length(Q.shape->material->Kt) > 0.01) {
+                std::cout << "dot: " << dot(normalize(Q.n), normalize(-omegaI)) << std::endl;
+            }
+           std::cout << af << std::endl;
+        }*/
 
 
 
@@ -256,7 +270,9 @@ Color Scene::TracePath(Ray r) {
         W *= f / p;
 
         if (Q.shape->material->isLight()) {
-            C += 0.5f * W * Q.shape->EvalRadiance();
+            q = PdfLight(Q) / GeometryFactor(P, Q);
+            Wmis = pow(p, 2) / (pow(p, 2) + pow(q, 2));
+            C += 0.5f * W * Wmis * Q.shape->EvalRadiance();
             break;
         }
         P = Q;
@@ -286,7 +302,7 @@ float Scene::GeometryFactor(const Intersection& A, const Intersection& B) {
 
 bool Scene::SamePoint(const Intersection& A, const Intersection& B) {
     glm::vec3 diff = A.point - B.point;
-    return A.shape == B.shape && glm::length2(diff) < EPSILON;//&& A.point == B.point;
+    return A.shape == B.shape;//&& glm::length2(diff) < EPSILON;
 }
 
 
