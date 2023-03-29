@@ -600,6 +600,28 @@ float Box::distance(const glm::vec3& P) const {
                     std::max(P.z - max.z, corner.z - P.z)))));
 }
 
+float Cylinder::distance(const glm::vec3& P) const {
+    vec2 d = glm::abs(vec2(length(glm::vec2(P.x, P.y)), P.z- axis.z/2)) - vec2(radius, axis.z/2);
+    return std::min(std::max(d.x, d.y), 0.0f) +length(glm::max(d, vec2(0.0)));
+
+
+    float a = glm::length(glm::vec2(P.x, P.y)) - radius;
+    float b = 0;
+    if (P.z > axis.z) {
+        b = P.z - axis.z;
+    }
+    else if (P.z < 0) {
+        b = -P.z;
+    }
+    return sqrt(pow(a,2) + pow(b,2));
+}
+
+float Torus::distance(const glm::vec3& P) const {
+    glm::vec3 p = P - center;
+    float m = sqrt(p.x * p.x + p.y * p.y) - R;
+    return sqrt(m * m + p.z * p.z) - r;
+}
+
 float Cone::distance(const glm::vec3& P) const {
     glm::vec3 p = P - center;
     float infCone = glm::length(glm::vec2(p.x, p.y)) * cos(theta) - abs(p.z) * sin(theta);
@@ -609,17 +631,98 @@ float Cone::distance(const glm::vec3& P) const {
     return infCone;
 }
 
+float Translate::distance(const glm::vec3& P) const {
+    return A->distance(P - position);
+}
+
+float Rotate::distance(const glm::vec3& P) const {
+    return A->distance((Rinv*glm::vec4(P,1)).xyz);
+}
+
+float Scale::distance(const glm::vec3& P) const {
+    return lConst * A->distance(glm::vec3(P)/scale);
+}
+
+float Twist::distance(const glm::vec3& P) const {
+    glm::vec3 pTwist;
+    pTwist.x = P.x * cos(twistSpeed * P.z) - P.y * sin(twistSpeed * P.z);
+    pTwist.y = P.x * sin(twistSpeed * P.z) + P.y * cos(twistSpeed * P.z);
+    pTwist.z = P.z;
+    return lConst * A->distance(pTwist);
+}
+
+float MetaBalls::distance(const glm::vec3& P) const {
+
+    //return ballList[0].distance(P);
+
+    float finalDistance = threshold;
+    
+
+    for (auto& b : ballList) {
+        float d = glm::length(P - b.getCenter());
+        float C = 0;
+        if (d < b.getRadius()) {
+            C = 2 * pow(d,3)/pow(b.getRadius(), 3) -
+                3 * pow(d,2)/pow(b.getRadius(), 2) + 1;
+        }
+        
+        finalDistance -= C;
+    }
+    return lConst*finalDistance;
+}
+
+
+
+float Displace::distance(const glm::vec3& P) const {
+    float d1 = A->distance(P);
+    float d2 = sin(alpha * P.x) * sin(alpha * P.y) * sin(alpha * P.z);
+    return d1 + d2;
+}
+
+
+float InfiniteField::distance(const glm::vec3& P) const {
+    //return A->distance(P);
+    
+    //glm::vec3 repP = P + 0.5f * repetitionPeriod;
+    glm::vec3 repP = P;
+
+    repP.x = std::fmod(repP.x, repetitionPeriod.x);
+    //repP.y = std::fmod(repP.y, repetitionPeriod.y);
+    //repP.z = std::fmod(repP.z, repetitionPeriod.z);
+
+    //repP -= 0.5f * repetitionPeriod;
+
+    return A->distance(repP);
+}
+
+
 std::vector<glm::vec3> Sphere::pointList() {
     std::vector<glm::vec3> pointList;
     pointList.push_back(center + glm::vec3(radius));
+    pointList.push_back(center + vec3(radius, radius, -radius));
+    pointList.push_back(center + vec3(radius, -radius, radius));
+    pointList.push_back(center + vec3(radius, -radius, -radius));
+    pointList.push_back(center + vec3(-radius, radius, radius));
+    pointList.push_back(center + vec3(-radius, radius, -radius));
+    pointList.push_back(center + vec3(-radius, -radius, radius));
     pointList.push_back(center - glm::vec3(radius));
+
     return pointList;
 }
 
 std::vector<glm::vec3> Box::pointList() {
     std::vector<glm::vec3> pointList;
     pointList.push_back(corner);
+
     pointList.push_back(corner + diagonal);
+
+    pointList.push_back(corner + vec3(diagonal.x, -diagonal.y, diagonal.z));
+    pointList.push_back(corner + vec3(diagonal.x, -diagonal.y, -diagonal.z));
+    pointList.push_back(corner + vec3(diagonal.x, diagonal.y, -diagonal.z));
+
+    pointList.push_back(corner + vec3(-diagonal.x, diagonal.y, diagonal.z));
+    pointList.push_back(corner + vec3(-diagonal.x, -diagonal.y, diagonal.z));
+    pointList.push_back(corner + vec3(-diagonal.x, diagonal.y, -diagonal.z));
 
     return pointList;
 }
@@ -632,6 +735,8 @@ std::vector<glm::vec3> Cylinder::pointList() {
     pointList.push_back(axis+base + glm::vec3(radius));
     pointList.push_back(axis+base - glm::vec3(radius));
 
+    pointList.push_back(vec3(-10000, -1000, -1000));
+    pointList.push_back(vec3(10000, 1000, 1000));
 
     return pointList;
 }
@@ -656,7 +761,6 @@ std::vector<glm::vec3> Torus::pointList() {
     return pointList;
 }
 
-
 std::vector<glm::vec3> Cone::pointList() {
     std::vector<glm::vec3> pointList;
     pointList.push_back(center);
@@ -672,8 +776,126 @@ std::vector<glm::vec3> Cone::pointList() {
     return pointList;
 }
 
+std::vector<glm::vec3> Translate::pointList() {
+    std::vector<glm::vec3> pointList = A->pointList();
+    for (glm::vec3& point : pointList) {
+        point += position;
+    }
+    return pointList;
+}
+
+std::vector<glm::vec3> Rotate::pointList() {
+    std::vector<glm::vec3> pointList = A->pointList();
+    for (glm::vec3& point : pointList) {
+        point = (R * glm::vec4(point,1)).xyz;
+    }
+    return pointList;
+}
+
+std::vector<glm::vec3> Scale::pointList() {
+    std::vector<glm::vec3> pointList = A->pointList();
+    for (glm::vec3& point : pointList) {
+        point *= scale;
+    }
+    return pointList;
+}
+
+std::vector<glm::vec3> Twist::pointList() {
+
+    //return A->pointList();
 
 
+
+    std::vector<glm::vec3> shapePointList = A->pointList();
+
+    std::vector<glm::vec3> pointList = shapePointList;
+
+    for (const auto& p : shapePointList) {
+        pointList.push_back(
+            vec3(rotate(glm::mat4(1.0f), (float)M_PI/2.0f, vec3(0, 0, 1)) * vec4(p, 1))
+        );
+        pointList.push_back(
+            vec3(rotate(glm::mat4(1.0f), (float)M_PI, vec3(0, 0, 1)) * vec4(p, 1))
+        );
+        pointList.push_back(
+            vec3(rotate(glm::mat4(1.0f), 3.0f*(float)M_PI/2.0f, vec3(0, 0, 1)) * vec4(p, 1))
+        );
+
+
+
+        pointList.push_back(
+            vec3(rotate(glm::mat4(1.0f), (float)M_PI/4.0f, vec3(0, 0, 1)) * vec4(p, 1))
+        );
+        pointList.push_back(
+            vec3(rotate(glm::mat4(1.0f), 3.0f* (float)M_PI/4.0f, vec3(0, 0, 1)) * vec4(p, 1))
+        );
+        pointList.push_back(
+            vec3(rotate(glm::mat4(1.0f), 5.0f * (float)M_PI / 4.0f, vec3(0, 0, 1)) * vec4(p, 1))
+        );
+        pointList.push_back(
+            vec3(rotate(glm::mat4(1.0f), 7.0f * (float)M_PI / 4.0f, vec3(0, 0, 1)) * vec4(p, 1))
+        );
+    }
+    return pointList;
+
+    pointList.push_back(glm::vec3(100000, 100000, 100000));
+    pointList.push_back(glm::vec3(-100000, -100000, -100000));
+
+    pointList.push_back(glm::vec3(100000, 100000, -100000));
+    pointList.push_back(glm::vec3(100000, -100000, 100000));
+    pointList.push_back(glm::vec3(100000, -100000, -100000));
+    pointList.push_back(glm::vec3(-100000, 100000, 100000));
+    pointList.push_back(glm::vec3(-100000, 100000, -100000));
+    pointList.push_back(glm::vec3(-100000, -100000, 100000));
+
+    return pointList;
+}
+
+std::vector<glm::vec3> MetaBalls::pointList() {
+
+    std::vector<glm::vec3> pointList;
+    for (Sphere& ball : ballList) {
+        for(auto p : ball.pointList())
+        pointList.push_back(p);
+    }
+    return pointList;
+}
+
+std::vector<glm::vec3> Displace::pointList() {
+
+    //return A->pointList();
+
+    std::vector<glm::vec3> pointList;
+    pointList.push_back(glm::vec3(100000, 100000, 100000));
+    pointList.push_back(glm::vec3(-100000, -100000, -100000));
+
+    pointList.push_back(glm::vec3(100000, 100000, -100000));
+    pointList.push_back(glm::vec3(100000, -100000, 100000));
+    pointList.push_back(glm::vec3(100000, -100000, -100000));
+    pointList.push_back(glm::vec3(-100000, 100000, 100000));
+    pointList.push_back(glm::vec3(-100000, 100000, -100000));
+    pointList.push_back(glm::vec3(-100000, -100000, 100000));
+
+    return pointList;
+}
+
+std::vector<glm::vec3> InfiniteField::pointList() {
+
+    //return A->pointList();
+
+    std::vector<glm::vec3> pointList;
+    pointList.push_back(glm::vec3(100000, 100000, 100000));
+    pointList.push_back(glm::vec3(-100000, -100000, -100000));
+
+    pointList.push_back(glm::vec3(100000, 100000, -100000));
+    pointList.push_back(glm::vec3(100000, -100000, 100000));
+    pointList.push_back(glm::vec3(100000, -100000, -100000));
+    pointList.push_back(glm::vec3(-100000, 100000, 100000));
+    pointList.push_back(glm::vec3(-100000, 100000, -100000));
+    pointList.push_back(glm::vec3(-100000, -100000, 100000));
+
+    return pointList;
+}
 
 
 Intersection Sphere::SampleSphere() {

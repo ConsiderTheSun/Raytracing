@@ -179,6 +179,82 @@ void Scene::Command(const std::vector<std::string>& strings,
         shapeList.push_back(new Difference(obj1, obj2, currentMat));
     }
 
+    else if (c == "translate") {
+    // syntax: rotate xOffset yOffset zOffset
+    Shape* obj = shapeList.back();
+    shapeList.pop_back();
+    shapeList.push_back(new Translate(obj, glm::vec3(f[1], f[2], f[3]), currentMat));
+    }
+    else if (c == "rotate") {
+        // syntax: rotate xAxis yAxis zAxis
+        Shape* obj = shapeList.back();
+        shapeList.pop_back();
+        shapeList.push_back(new Rotate(obj, glm::vec3(f[1], f[2], f[3]), currentMat));
+    }
+    else if (c == "scale") {
+        // syntax: scale xScale yScale zScale
+        // or:     scale xyzScale
+        Shape* obj = shapeList.back();
+        shapeList.pop_back();
+
+        if (f.size() == 4) {
+            shapeList.push_back(new Scale(obj, glm::vec3(f[1], f[2], f[3]), currentMat));
+        }
+        else {
+            shapeList.push_back(new Scale(obj, glm::vec3(f[1], f[1], f[1]), currentMat));
+        }
+    }
+
+    else if (c == "twist") {
+        // syntax: twist alpha
+        Shape* obj = shapeList.back();
+        shapeList.pop_back();
+
+        shapeList.push_back(new Twist(obj, f[1], currentMat));
+    }
+
+    else if (c == "metaballs") {
+        // syntax: metaballs threshold Pos1x Pos1y Pos1z R1 Pos2x Pos2y Pos2z R2 ...
+        std::vector<Sphere> ballList;
+
+        Sphere aBall(vec3(f[2], f[3], f[4]), f[5], currentMat);
+
+        for (int i = 2; i+3 < f.size(); i+=4) {
+            realtime->sphere(vec3(f[i], f[i+1], f[i+2]), f[i+3], currentMat);
+            ballList.push_back(Sphere(vec3(f[i], f[i+1], f[i+2]), f[i+3], currentMat));
+        }
+
+        shapeList.push_back(new MetaBalls(f[1], ballList, currentMat));
+    }
+
+    // doesn't work
+    /*
+    else if (c == "displace") {
+    // syntax: displace alpha
+    Shape* obj = shapeList.back();
+    shapeList.pop_back();
+
+    shapeList.push_back(new Displace(obj, f[1], currentMat));
+    }
+    */
+
+    // doesn't work
+    /*
+    else if (c == "field_inf") {
+        // syntax: field_inf 1 repetitionPeriod1
+        // or:     field_inf 2 repetitionPeriod1 repetitionPeriod2
+        // or:     field_inf 3 repetitionPeriod1 repetitionPeriod2 repetitionPeriod3
+        Shape* obj = shapeList.back();
+        shapeList.pop_back();
+
+        if (f.size() == 3) {
+            shapeList.push_back(new InfiniteField(obj, f[2], currentMat));
+        }
+        else {
+            std::cout << "Bad Syntax in Infinite Field" << std::endl;
+        }
+    }
+    */
     else if (c == "torus") {
         // syntax: torus x y z R r
 

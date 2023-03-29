@@ -50,7 +50,7 @@ public:
 class Shape {
 public:
 	virtual Intersection intersect(Ray r)=0;
-	virtual float distance(const glm::vec3& P) const { return 100000; }; // TODO: make pure virtual
+	virtual float distance(const glm::vec3& P) const =0; // TODO: make pure virtual
 
 	virtual std::vector<glm::vec3> pointList()=0;
 
@@ -101,7 +101,8 @@ class Sphere : public Shape {
 public:
 	Sphere(glm::vec3 c, float r, Material* m):center(c),radius(r), Shape(m) {}
 
-	glm::vec3 getCenter() { return center; }
+	glm::vec3 getCenter() const { return center; }
+	float getRadius() const { return radius; }
 
 	Intersection intersect(Ray r);
 	float distance(const glm::vec3& P) const;
@@ -137,6 +138,8 @@ public:
 	Cylinder(glm::vec3 b, glm::vec3 a, float r, Material* m) :base(b), axis(a),radius(r), Shape(m) {}
 
 	Intersection intersect(Ray r);
+	float distance(const glm::vec3& P) const;
+
 	std::vector<glm::vec3> pointList();
 private:
 	glm::vec3 base;
@@ -150,6 +153,8 @@ public:
 	Tri(MeshData* md, Material* m) :mesh(md), Shape(m) {}
 
 	Intersection intersect(Ray r);
+	float distance(const glm::vec3& P) const { return 1000000; }; // TODO: make this work if I want mesh
+
 	std::vector<glm::vec3> pointList();
 private:
 	MeshData* mesh;
@@ -221,11 +226,7 @@ class Torus : public RayMarchShape{
 
 public:
 	Torus(glm::vec3 c, float _R, float _r, Material* m) : center(c), R(_R), r(_r), RayMarchShape(m) {}
-	float distance(const glm::vec3& P) const override {
-		glm::vec3 p = P - center;
-		float m = sqrt(p.x * p.x + p.y * p.y) - R;
-		return sqrt(m * m + p.z * p.z) - r;
-	}
+	float distance(const glm::vec3& P) const override;
 	std::vector<glm::vec3> pointList();
 
 };
@@ -236,6 +237,110 @@ class Cone : public RayMarchShape {
 
 public:
 	Cone(glm::vec3 c, float h, float _theta, Material* m) : center(c), height(h),theta(_theta), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class Translate : public RayMarchShape {
+	Shape* A;
+
+	glm::vec3 position;
+public:
+	Translate(Shape* _A, vec3 _position, Material* m) : A(_A), position(_position), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class Rotate : public RayMarchShape {
+	Shape* A;
+
+	glm::mat4 R;
+	glm::mat4 Rinv;
+public:
+	Rotate(Shape* _A, vec3 rotationV, Material* m) : A(_A), RayMarchShape(m) {
+		rotationV *= M_PI / 180.0f;
+		R = glm::rotate(glm::mat4(1.0f), rotationV.x, glm::vec3(1, 0, 0));
+		R = glm::rotate(R, rotationV.y, glm::vec3(0, 1, 0));
+		R = glm::rotate(R, rotationV.z, glm::vec3(0, 0, 1));
+
+		Rinv = glm::transpose(R);
+	}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class Scale : public RayMarchShape {
+	Shape* A;
+
+	float lConst;
+	glm::vec3 scale;
+public:
+	Scale(Shape* _A, vec3 _scale, Material* m) : A(_A), scale(_scale), RayMarchShape(m) {
+		lConst = std::min(std::min(scale.x, scale.y), scale.z);
+	}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class Twist : public RayMarchShape {
+	Shape* A;
+
+	float lConst;
+	float twistSpeed;
+public:
+	Twist(Shape* _A, float _twistSpeed, Material* m) : A(_A), twistSpeed(2.0f * M_PI*_twistSpeed), RayMarchShape(m) {
+		lConst = 1.0f/sqrt(4 + pow(_twistSpeed * M_PI, 2));
+	}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class MetaBalls : public RayMarchShape {
+
+public:
+	struct MetaBallData {
+		vec3 position;
+		float radius;
+		MetaBallData(vec3 p, float r) : position(p), radius(r) {};
+	};
+	float threshold;
+	std::vector<Sphere> ballList;
+
+	float lConst;
+	MetaBalls(float _threshold, std::vector<Sphere> _ballList, Material* m)
+		: threshold(_threshold), ballList(_ballList), RayMarchShape(m) {
+		lConst = 0;
+		for (auto& b : ballList) {
+			lConst += b.getRadius();
+		}
+		lConst = 3.0f / (2.0f*lConst);
+	}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class Displace: public RayMarchShape{
+	Shape* A;
+
+	float lConst;
+	float alpha;
+public:
+	Displace(Shape* _A, float _alpha, Material* m) : A(_A), alpha(_alpha), RayMarchShape(m) {
+		lConst = 1.0f;
+	}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+
+class InfiniteField : public RayMarchShape {
+	Shape* A;
+
+	int dimentions;
+	glm::vec3 repetitionPeriod;
+public:
+	InfiniteField(Shape* _A, float rP, Material* m) : dimentions(1), A(_A), repetitionPeriod(vec3(rP)), RayMarchShape(m) {}
+	
 	float distance(const glm::vec3& P) const override;
 	std::vector<glm::vec3> pointList();
 };
