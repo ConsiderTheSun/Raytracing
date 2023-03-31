@@ -623,13 +623,70 @@ float Torus::distance(const glm::vec3& P) const {
 }
 
 float Cone::distance(const glm::vec3& P) const {
+
+    vec2 d = glm::abs(vec2(length(glm::vec2(P.x, P.y)), P.z - height / 2)) - vec2(radius, height / 2);
+    float cylinderCutoff = std::min(std::max(d.x, d.y), 0.0f) + length(glm::max(d, vec2(0.0)));
+    
     glm::vec3 p = P - center;
     float infCone = glm::length(glm::vec2(p.x, p.y)) * cos(theta) - abs(p.z) * sin(theta);
-    float cutoff = -height - p.z;
 
-    return std::max(infCone, cutoff);
+    return std::max(infCone, cylinderCutoff);
     return infCone;
 }
+
+float Pyramid::distance(const glm::vec3& P) const {
+    float m2 = height * height + 0.25;
+
+    vec3 p = P;
+
+    p.xz = glm::abs(vec2(p.xz));
+    p.xz = (p.z > p.x) ? vec2(p.zx) : vec2(p.xz);
+    p.xz -= vec2(0.5f);
+
+    vec3 q = vec3(p.z, height * p.y - 0.5 * p.x, height * p.x + 0.5 * p.y);
+
+    float s = std::max(-q.x, 0.0f);
+    float t = std::clamp((q.y - 0.5 * p.z) / (m2 + 0.25), 0.0, 1.0);
+
+    float a = m2 * (q.x + s) * (q.x + s) + q.y * q.y;
+    float b = m2 * (q.x + 0.5 * t) * (q.x + 0.5 * t) + (q.y - m2 * t) * (q.y - m2 * t);
+
+    float d2 = std::min(q.y, -q.x * m2 - q.y * 0.5f) > 0.0 ? 0.0 : std::min(a, b);
+
+    return sqrt((d2 + q.z * q.z) / m2) * AuxilaryFunctions::sign(std::max(q.z, -p.y));
+}
+
+float Octohedron::distance(const glm::vec3& P) const {
+    vec3 pAbs = glm::abs(P);
+    return (pAbs.x + pAbs.y + pAbs.z - s) * 0.57735027;
+}
+
+float TriPrism::distance(const glm::vec3& P) const {
+    vec3 pAbs = glm::abs(P);
+    return std::max(pAbs.z - height, std::max(pAbs.x * 0.866025f + P.y * 0.5f, -P.y) - side * 0.5f);
+}
+
+float HexPrism::distance(const glm::vec3& P) const {
+    vec3 pAbs = glm::abs(P);
+
+    const vec3 k = vec3(-0.8660254, 0.5, 0.57735);
+    pAbs.xy -= 2.0f * glm::min(glm::dot(vec2(k.x,k.y), vec2(pAbs.x,pAbs.y)), 0.0f) * k.xy;
+
+    float clamp = pAbs.x;
+    if (clamp > k.z * side) clamp = k.z * side;
+    else if (clamp < -k.z * side) clamp = -k.z * side;
+
+    vec2 d = vec2(
+        length(pAbs.xy - vec2(clamp, side)) * AuxilaryFunctions::sign(pAbs.y - side),
+        pAbs.z - height);
+    return std::min(std::max(d.x, d.y), 0.0f) + length(glm::max(d, 0.0f));
+}
+
+float Link::distance(const glm::vec3& P) const {
+    vec3 q = vec3(P.x, std::max(abs(P.y) - le, 0.0f), P.z);
+    return length(vec2(length(vec2(q.xy)) - r1, q.z)) - r2;
+}
+
 
 float Translate::distance(const glm::vec3& P) const {
     return A->distance(P - position);
@@ -681,12 +738,26 @@ float Displace::distance(const glm::vec3& P) const {
 
 
 float InfiniteField::distance(const glm::vec3& P) const {
-    //return A->distance(P);
-    
-    //glm::vec3 repP = P + 0.5f * repetitionPeriod;
-    glm::vec3 repP = P;
+    //x/c-floor(x/c)
 
-    repP.x = std::fmod(repP.x, repetitionPeriod.x);
+    //return A->distance(P);
+
+    glm::vec3 repP = P;
+    switch (dimentions) {
+    case 3:
+        repP.z = repetitionPeriod.z * (P.z / repetitionPeriod.z - floor(P.z / repetitionPeriod.z));
+    case 2:
+        repP.y = repetitionPeriod.y * (P.y / repetitionPeriod.y - floor(P.y / repetitionPeriod.y));
+    case 1:
+        repP.x = repetitionPeriod.x * (P.x / repetitionPeriod.x - floor(P.x / repetitionPeriod.x));
+    default:
+        break;
+    }
+    //glm::vec3 repP = P + 0.5f * repetitionPeriod;
+    
+
+    //repP.x = std::fmod(repP.x, repetitionPeriod.x);
+    
     //repP.y = std::fmod(repP.y, repetitionPeriod.y);
     //repP.z = std::fmod(repP.z, repetitionPeriod.z);
 
@@ -735,9 +806,6 @@ std::vector<glm::vec3> Cylinder::pointList() {
     pointList.push_back(axis+base + glm::vec3(radius));
     pointList.push_back(axis+base - glm::vec3(radius));
 
-    pointList.push_back(vec3(-10000, -1000, -1000));
-    pointList.push_back(vec3(10000, 1000, 1000));
-
     return pointList;
 }
 
@@ -765,13 +833,64 @@ std::vector<glm::vec3> Cone::pointList() {
     std::vector<glm::vec3> pointList;
     pointList.push_back(center);
 
-    float radius = height * tan(theta);
     pointList.push_back(center + glm::vec3(radius));
     pointList.push_back(center - glm::vec3(radius));
     pointList.push_back(center - height + glm::vec3(radius));
     pointList.push_back(center - height - glm::vec3(radius));
 
-    pointList.push_back(glm::vec3(1000,1000,1000)); // TODO: Remove this when bounding works
+    pointList.push_back(vec3(0,0,height) + center + glm::vec3(radius));
+    pointList.push_back(vec3(0, 0, height) + center - glm::vec3(radius));
+
+    return pointList;
+}
+
+std::vector<glm::vec3> Pyramid::pointList() {
+    std::vector<glm::vec3> pointList;
+
+    pointList.push_back(vec3(height));
+    pointList.push_back(vec3(-height));
+    pointList.push_back(vec3(2));
+    pointList.push_back(vec3(-2));
+
+    return pointList;
+}
+
+std::vector<glm::vec3> Octohedron::pointList() {
+    std::vector<glm::vec3> pointList;
+  
+    pointList.push_back(vec3(s));
+    pointList.push_back(vec3(-s));
+
+    return pointList;
+}
+
+std::vector<glm::vec3> TriPrism::pointList() {
+    std::vector<glm::vec3> pointList;
+
+    pointList.push_back(vec3(height));
+    pointList.push_back(vec3(-height));
+    pointList.push_back(vec3(2 * side));
+    pointList.push_back(vec3(-2 * side));
+
+    return pointList;
+}
+
+std::vector<glm::vec3> HexPrism::pointList() {
+    std::vector<glm::vec3> pointList;
+
+    pointList.push_back(vec3(height));
+    pointList.push_back(vec3(-height));
+    pointList.push_back(vec3(2 * side));
+    pointList.push_back(vec3(-2 * side));
+
+    return pointList;
+}
+
+std::vector<glm::vec3> Link::pointList() {
+    std::vector<glm::vec3> pointList;
+
+    pointList.push_back(vec3(1000));
+    pointList.push_back(vec3(-1000));
 
     return pointList;
 }

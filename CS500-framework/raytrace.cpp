@@ -143,9 +143,6 @@ void Scene::Command(const std::vector<std::string>& strings,
         if (currentMat->isLight()) lightList.push_back(s);
         shapeList.push_back(s);
     }
-
-
-
     else if (c == "mesh") {
         // syntax: mesh   filename   tx ty tz   s   <orientation>
         // Creates many Shape instances (one per triangle) by reading
@@ -213,6 +210,7 @@ void Scene::Command(const std::vector<std::string>& strings,
         shapeList.push_back(new Twist(obj, f[1], currentMat));
     }
 
+    // doesn't work
     else if (c == "metaballs") {
         // syntax: metaballs threshold Pos1x Pos1y Pos1z R1 Pos2x Pos2y Pos2z R2 ...
         std::vector<Sphere> ballList;
@@ -238,23 +236,27 @@ void Scene::Command(const std::vector<std::string>& strings,
     }
     */
 
-    // doesn't work
-    /*
     else if (c == "field_inf") {
-        // syntax: field_inf 1 repetitionPeriod1
-        // or:     field_inf 2 repetitionPeriod1 repetitionPeriod2
-        // or:     field_inf 3 repetitionPeriod1 repetitionPeriod2 repetitionPeriod3
+        // syntax: field_inf repetitionPeriod1
+        // or:     field_inf repetitionPeriod1 repetitionPeriod2
+        // or:     field_inf repetitionPeriod1 repetitionPeriod2 repetitionPeriod3
         Shape* obj = shapeList.back();
         shapeList.pop_back();
 
-        if (f.size() == 3) {
-            shapeList.push_back(new InfiniteField(obj, f[2], currentMat));
+        if (f.size() == 2) {
+            shapeList.push_back(new InfiniteField(obj, f[1], currentMat));
+        }
+        else if (f.size() == 3) {
+            shapeList.push_back(new InfiniteField(obj, vec2(f[1],f[2]), currentMat));
+        }
+        else if (f.size() == 4) {
+            shapeList.push_back(new InfiniteField(obj, vec3(f[1], f[2], f[3]), currentMat));
         }
         else {
-            std::cout << "Bad Syntax in Infinite Field" << std::endl;
+            shapeList.push_back(obj);
         }
     }
-    */
+    
     else if (c == "torus") {
         // syntax: torus x y z R r
 
@@ -266,12 +268,55 @@ void Scene::Command(const std::vector<std::string>& strings,
     }
 
     else if (c == "cone") {
-    // syntax: cone x y z h theta
+        // syntax: cone x y z height radius
 
-    realtime->cylinder(vec3(f[1], f[2], f[3]+ f[4]/2), vec3(0, 0, f[4]), f[5], currentMat);
-    Shape* s = new Cone(vec3(f[1], f[2], f[3]),f[4], f[5], currentMat);
-    if (currentMat->isLight()) lightList.push_back(s);
-    shapeList.push_back(s);
+        realtime->cylinder(vec3(f[1], f[2], f[3] ), vec3(0, 0, f[4]), f[5], currentMat);
+        Shape* s = new Cone(vec3(f[1], f[2], f[3]),f[4], f[5], currentMat);
+        if (currentMat->isLight()) lightList.push_back(s);
+        shapeList.push_back(s);
+    }
+    else if (c == "pyramid") {
+        // syntax: pyramid height
+
+        //realtime->cylinder(vec3(f[1], f[2], f[3] ), vec3(0, 0, f[4]), f[5], currentMat);
+        Shape* s = new Pyramid(f[1], currentMat);
+        if (currentMat->isLight()) lightList.push_back(s);
+        shapeList.push_back(s);
+    }
+
+    else if (c == "octo") {
+        // syntax: octo s
+
+        //realtime->cylinder(vec3(f[1], f[2], f[3]), vec3(0, 0, f[4]), f[5], currentMat);
+        Shape* s = new Octohedron(f[1], currentMat);
+        if (currentMat->isLight()) lightList.push_back(s);
+        shapeList.push_back(s);
+    }
+
+    else if (c == "triPrism") {
+        // syntax: triPrism side height
+
+        //realtime->cylinder(vec3(f[1], f[2], f[3]), vec3(0, 0, f[4]), f[5], currentMat);
+        Shape* s = new TriPrism(f[1],f[2], currentMat);
+        if (currentMat->isLight()) lightList.push_back(s);
+        shapeList.push_back(s);
+    }
+    else if (c == "hexPrism") {
+        // syntax: triPrism side height
+
+        //realtime->cylinder(vec3(f[1], f[2], f[3]), vec3(0, 0, f[4]), f[5], currentMat);
+        Shape* s = new HexPrism(f[1],f[2], currentMat);
+        if (currentMat->isLight()) lightList.push_back(s);
+        shapeList.push_back(s);
+    }
+
+    else if (c == "link") {
+        // syntax: link le, r1, r2;
+
+        //realtime->cylinder(vec3(f[1], f[2], f[3]), vec3(0, 0, f[4]), f[5], currentMat);
+        Shape* s = new Link(f[1], f[2], f[3], currentMat);
+        if (currentMat->isLight()) lightList.push_back(s);
+        shapeList.push_back(s);
     }
 
 

@@ -1,3 +1,9 @@
+/*
+ * Credit to Inigo Quilez for a lot of the distance functions in here
+ * https://iquilezles.org/articles/distfunctions/
+ */
+
+
 #ifndef SHAPE_H
 #define SHAPE_H
 
@@ -233,13 +239,62 @@ public:
 
 class Cone : public RayMarchShape {
 	glm::vec3 center;
-	float height, theta;
+	float height, radius;
+	float theta;
 
 public:
-	Cone(glm::vec3 c, float h, float _theta, Material* m) : center(c), height(h),theta(_theta), RayMarchShape(m) {}
+	Cone(glm::vec3 c, float _height, float _radius, Material* m) : center(c), height(_height), radius(_radius), theta(sin(_radius / _height)),RayMarchShape(m) {}
 	float distance(const glm::vec3& P) const override;
 	std::vector<glm::vec3> pointList();
 };
+
+class Pyramid : public RayMarchShape {
+	float height;
+
+public:
+	Pyramid(float _height, Material* m) : height(_height), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class Octohedron : public RayMarchShape {
+	float s;
+
+public:
+	Octohedron(float _s, Material* m) : s(_s), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class TriPrism : public RayMarchShape {
+	float side;
+	float height;
+
+public:
+	TriPrism(float _side, float _height, Material* m) :side(_side), height(_height), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class HexPrism : public RayMarchShape {
+	float side;
+	float height;
+
+public:
+	HexPrism(float _side, float _height, Material* m) :side(_side), height(_height), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
+class Link : public RayMarchShape {
+	float le, r1, r2;
+
+public:
+	Link(float _le, float _r1, float _r2, Material* m) :le(_le), r1(_r1), r2(_r2), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
+};
+
 
 class Translate : public RayMarchShape {
 	Shape* A;
@@ -336,11 +391,13 @@ public:
 class InfiniteField : public RayMarchShape {
 	Shape* A;
 
-	int dimentions;
+	unsigned int dimentions;
 	glm::vec3 repetitionPeriod;
 public:
-	InfiniteField(Shape* _A, float rP, Material* m) : dimentions(1), A(_A), repetitionPeriod(vec3(rP)), RayMarchShape(m) {}
-	
+	InfiniteField(Shape* _A, float rP, Material* m) : dimentions(1), A(_A), repetitionPeriod(vec3(rP,0,0)), RayMarchShape(m) {}
+	InfiniteField(Shape* _A, vec2 rP, Material* m) : dimentions(2), A(_A), repetitionPeriod(vec3(rP, 0)), RayMarchShape(m) {}
+	InfiniteField(Shape* _A, vec3 rP, Material* m) : dimentions(3), A(_A), repetitionPeriod(rP), RayMarchShape(m) {}
+
 	float distance(const glm::vec3& P) const override;
 	std::vector<glm::vec3> pointList();
 };

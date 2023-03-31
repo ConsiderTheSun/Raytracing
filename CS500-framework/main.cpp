@@ -101,7 +101,9 @@ int main(int argc, char** argv)
     //std::string default = "testsceneReflection.scn";
     //std::string default = "sdfTransform.scn";
     //std::string default = "sdfClassic.scn";
-    std::string default = "sdfExtra.scn";
+    //std::string default = "sdfExtra.scn";
+    //std::string default = "sdfFields.scn";
+    std::string default = "sdfShapes.scn";
     //std::string default = "testsceneTransmission.scn";
     //std::cout << "scene: ";
     //std::cin >> default;
@@ -131,8 +133,8 @@ int main(int argc, char** argv)
     scene->SetCameraData();
 
     //std::array<int, 6> occasionally = { 0, 1, 8, 64, 512, 4096 };
-    //std::array<int, 5> occasionally = { 0, 1, 8, 64, 512 };
-    std::array<int, 4> occasionally = { 0, 1, 8, 64 };
+    std::array<int, 5> occasionally = { 0, 1, 8, 64, 512 };
+    //std::array<int, 4> occasionally = { 0, 1, 8, 64 };
     //std::array<int, 4> occasionally = { 0, 64, 128, 256 };
     //std::array<int, 3> occasionally = { 0, 1, 8 };
 
