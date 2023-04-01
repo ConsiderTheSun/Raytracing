@@ -4,6 +4,9 @@
 #include <limits>
 #include <algorithm>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 class Material;
 class MeshData;
 class VertexData
@@ -25,21 +28,21 @@ struct MeshData
 	Material* mat;
 };
 
-// FIX THIS:  Dummy ray to allow for compilation
 class Ray {
 public:
 	vec3 o, d;
-	Ray(const vec3 _o, const vec3 _d) : o(_o), d(_d) {}
+	Ray(const vec3 _o, const vec3 _d) : o(_o), d(glm::normalize(_d)) {}
 };
 class Shape;
-// FIX THIS:  This dummy Intersection record is defficient -- just barely enough to compile.
+
 class Intersection {
 public:
-	Intersection() :shape(nullptr),miss(true), t(0),n(glm::vec3()) {}
-	Intersection(Shape* s, float _t, glm::vec3 _n) :shape(s),miss(false), t(_t), n(_n) {}
+	Intersection() :shape(nullptr),miss(true), t(0),n(glm::vec3()),point(glm::vec3()) {}
+	Intersection(Shape* s, float _t, glm::vec3 _n, glm::vec3 _point) :shape(s),miss(false), t(_t), n(_n), point(_point) {}
 	Shape* shape;
 	bool miss;
 	float t;
+	glm::vec3 point;
 	glm::vec3 n;
 	float distance() const { return t; }  // A function the BVH traversal needs to be supplied.
 };
@@ -47,13 +50,34 @@ public:
 class Shape {
 public:
 	virtual Intersection intersect(Ray r)=0;
+	virtual float distance(const glm::vec3& P) const { return 100000; }; // TODO: make pure virtual
+
 	virtual std::vector<glm::vec3> pointList()=0;
 
 	Shape() :material(NULL) {}
 	Shape(Material* m) :material(m) {}
 
 	Material * material;
+
+	glm::vec3 SampleBrdf(glm::vec3 omegaO, glm::vec3 N);
+	float PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI);
+	glm::vec3 EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI);
+
+	virtual float Area() { std::cout << "Area not implemented for this shape" << std::endl; return 0; }
+
+	float Kai(float d);
+	float D(glm::vec3 m, glm::vec3 N);
+
+	float G(glm::vec3 omegaI, glm::vec3 omegaO, glm::vec3 m, glm::vec3 N);
+	float G1(glm::vec3 v, glm::vec3 m, glm::vec3 N);
+
+	glm::vec3 F(float d);
+
+
+	// these functions assume the shape is a light
+	Color EvalRadiance();
 };
+
 
 struct Interval {
 	Interval(float _t0=0, float _t1= std::numeric_limits<float>::infinity(), 
@@ -80,7 +104,13 @@ public:
 	glm::vec3 getCenter() { return center; }
 
 	Intersection intersect(Ray r);
+	float distance(const glm::vec3& P) const;
+
 	std::vector<glm::vec3> pointList();
+
+	Intersection SampleSphere();
+
+	float Area() override { return 4 * M_PI * radius * radius; }
 
 private:
 	glm::vec3 center;
@@ -94,6 +124,8 @@ public:
 	Box(glm::vec3 c, glm::vec3 d, Material* m) :corner(c), diagonal(d), Shape(m) {}
 
 	Intersection intersect(Ray r);
+	float distance(const glm::vec3& P) const;
+
 	std::vector<glm::vec3> pointList();
 private:
 	glm::vec3 corner;
@@ -121,6 +153,91 @@ public:
 	std::vector<glm::vec3> pointList();
 private:
 	MeshData* mesh;
+};
+
+
+class RayMarchShape : public Shape {
+public:
+	RayMarchShape(Material* m) :Shape(m) {}
+	Intersection intersect(Ray r);
+	virtual float distance(const glm::vec3& P) const override = 0;
+};
+
+
+class Union : public RayMarchShape {
+	Shape* A;
+	Shape* B;
+public:
+	Union(Shape* _A, Shape* _B, Material* m) : A(_A), B(_B), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override{
+		return std::min(A->distance(P), B->distance(P));
+	}
+
+	std::vector<glm::vec3> pointList() {
+		std::vector<glm::vec3> ABList = A->pointList();
+		std::vector<glm::vec3> BList = B->pointList();
+		ABList.insert(ABList.end(), BList.begin(), BList.end());
+		return ABList;
+	}
+};
+
+class Intersect : public RayMarchShape {
+	Shape* A;
+	Shape* B;
+public:
+	Intersect(Shape* _A, Shape* _B, Material* m) : A(_A), B(_B), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override {
+		return std::max(A->distance(P), B->distance(P));
+	}
+
+	std::vector<glm::vec3> pointList() {
+		std::vector<glm::vec3> ABList = A->pointList();
+		std::vector<glm::vec3> BList = B->pointList();
+		ABList.insert(ABList.end(), BList.begin(), BList.end());
+		return ABList;
+	}
+};
+
+class Difference : public RayMarchShape {
+	Shape* A;
+	Shape* B;
+public:
+	Difference(Shape* _A, Shape* _B, Material* m) : A(_A), B(_B), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override {
+		return std::max(A->distance(P), -B->distance(P));
+	}
+
+	std::vector<glm::vec3> pointList() {
+		std::vector<glm::vec3> ABList = A->pointList();
+		std::vector<glm::vec3> BList = B->pointList();
+		ABList.insert(ABList.end(), BList.begin(), BList.end());
+		return ABList;
+	}
+};
+
+class Torus : public RayMarchShape{
+	glm::vec3 center;
+	float R, r;
+
+public:
+	Torus(glm::vec3 c, float _R, float _r, Material* m) : center(c), R(_R), r(_r), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override {
+		glm::vec3 p = P - center;
+		float m = sqrt(p.x * p.x + p.y * p.y) - R;
+		return sqrt(m * m + p.z * p.z) - r;
+	}
+	std::vector<glm::vec3> pointList();
+
+};
+
+class Cone : public RayMarchShape {
+	glm::vec3 center;
+	float height, theta;
+
+public:
+	Cone(glm::vec3 c, float h, float _theta, Material* m) : center(c), height(h),theta(_theta), RayMarchShape(m) {}
+	float distance(const glm::vec3& P) const override;
+	std::vector<glm::vec3> pointList();
 };
 
 #endif

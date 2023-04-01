@@ -10,6 +10,11 @@
 #define _OPENMP_LLVM_RUNTIME
 #include "acceleration.h"
 
+#define _USE_MATH_DEFINES
+#include <cmath>
+
+#include <glm/gtc/epsilon.hpp>
+
 class Shape;
 
 const float PI = 3.14159f;
@@ -36,34 +41,6 @@ class Material
 };
 
 ////////////////////////////////////////////////////////////////////////
-// Data structures for storing meshes -- mostly used for model files
-// read in via ASSIMP.
-//
-// A MeshData holds two lists (stl::vector) one for vertices
-// (VertexData: consisting of point, normal, texture, and tangent
-// vectors), and one for triangles (ivec3: consisting of three
-// indices into the vertex array).
-    
-//class VertexData
-//{
-// public:
-//    vec3 pnt;
-//    vec3 nrm;
-//    vec2 tex;
-//    vec3 tan;
-//    VertexData(const vec3& p, const vec3& n, const vec2& t, const vec3& a) 
-//        : pnt(p), nrm(n), tex(t), tan(a) 
-//    {}
-//};
-
-//struct MeshData
-//{
-//    std::vector<VertexData> vertices;
-//    std::vector<ivec3> triangles;
-//    Material *mat;
-//};
-
-////////////////////////////////////////////////////////////////////////
 // Light: encapsulates a light and communiction with a shader.
 ////////////////////////////////////////////////////////////////////////
 class Light: public Material
@@ -81,7 +58,7 @@ struct Camera{
     vec3 eye;      // Position of eye for viewing scene
     quat orient;   // Represents rotation of -Z to view direction
     float ry;
-    Camera():eye(vec3()), orient(quat()),ry(0) { }
+    Camera():eye(vec3(5.55323, 2.94275, 2.90087)), orient(quat(0.279589, 0.480987, 0.718247, 0.416981)),ry(0.2) { }
     Camera(const vec3& _eye, const quat& _o, const float _ry)
     {
         eye = _eye; orient = _o; ry = _ry;
@@ -102,8 +79,11 @@ public:
     std::vector<Shape*> shapeList;
     std::vector<Shape*> lightList;
 
-    std::chrono::time_point<std::chrono::high_resolution_clock> start;
 
+
+    const float RUSSIAN_ROULETTE = 0.8f;
+
+    const float EPSILON = 0.001;
 
     Scene();
     void Finit();
@@ -121,10 +101,23 @@ public:
     void triangleMesh(MeshData* mesh);
 
     Intersection TraceRay(Ray r);
+    Color TracePath(Ray r);
 
-    // The main program will call the TraceImage method to generate
-    // and return the image.  This is the Ray Tracer!
+    Intersection SampleLight();
+    float PdfLight(const Intersection& L) {
+        return 1.0f / (L.shape->Area() * lightList.size());
+    }
+
+    float GeometryFactor(const Intersection& A, const Intersection& B);
+
+    bool SamePoint(const Intersection& A, const Intersection& B);
+
+
+
+    bool isNan(Color C);
+    bool isInf(Color C);
+
     void TraceImage(Color* image, const int pass);
 
-    
+    void SetCameraData();
 };

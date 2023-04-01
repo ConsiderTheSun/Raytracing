@@ -64,7 +64,7 @@ void ReadScene(const std::string inName, Scene* scene){
 
 // Write the image as a HDR(RGBE) image.  
 #include "rgbe.h"
-void WriteHdrImage(const std::string outName, const int width, const int height, Color* image)
+void WriteHdrImage(const std::string outName, const int width, const int height, Color* image, int pass)
 {
     // Turn image from a 2D-bottom-up array of Vector3D to an top-down-array of floats
     float* data = new float[width*height*3];
@@ -72,9 +72,9 @@ void WriteHdrImage(const std::string outName, const int width, const int height,
     for (int y=height-1;  y>=0;  --y) {
         for (int x=0;  x<width;  ++x) {
             Color pixel = image[y*width + x];
-            *dp++ = pixel[0];
-            *dp++ = pixel[1];
-            *dp++ = pixel[2]; } }
+            *dp++ = pixel[0]/pass;
+            *dp++ = pixel[1] / pass;
+            *dp++ = pixel[2] / pass; } }
 
     // Write image to file in HDR (a.k.a RADIANCE) format
     rgbe_header_info info;
@@ -94,16 +94,24 @@ void WriteHdrImage(const std::string outName, const int width, const int height,
     delete data;
 }
 
+
 ////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv)
 {
+    std::string default = "testscene.scn";
+    //std::string default = "sdf.scn";
+    //std::cout << "scene: ";
+    //std::cin >> default;
+
+
     Scene* scene = new Scene();
 
     // Read the command line argument
-    std::string inName =  (argc > 1) ? argv[1] : "testscene.scn";
-    std::string hdrName = inName;
+    std::string inName =  (argc > 1) ? argv[1] : default;
+    std::string hdrBaseName = inName.substr(0, inName.size() - 4);
 
-    hdrName.replace(hdrName.size()-3, hdrName.size(), "hdr");
+    //hdrBaseName.replace(hdrName.size()-3, hdrName.size(), "hdr");
+
 
     // Read the scene, calling scene.Command for each line.
     ReadScene(inName, scene);
@@ -116,10 +124,32 @@ int main(int argc, char** argv)
         for (int x=0;  x<scene->width;  x++)
             image[y*scene->width + x] = Color(0,0,0);
 
-    // RayTrace the image
-    scene->TraceImage(image, 1);
+    // uses realtime to set the camera data
+    scene->SetCameraData();
 
-    // Write the image
-    WriteHdrImage(hdrName, scene->width, scene->height, image);
+    std::array<int, 6> occasionally = { 0, 1, 8, 64, 512, 4096 };
+    //std::array<int, 5> occasionally = { 0, 1, 8, 64, 512 };
+    //std::array<int, 4> occasionally = { 0, 1, 8, 64 };
+    //std::array<int, 3> occasionally = { 0, 1, 8 };
+
+    //std::array<int, 3> occasionally = { 0, 64, 512 };
+    //std::array<int, 9> occasionally = { 0, 1, 2, 3, 4, 5, 6, 7 ,8 };
+    //std::array<int, 5> occasionally = { 0, 1, 2, 3, 4 };
+
+    std::chrono::time_point<std::chrono::high_resolution_clock> start =
+        std::chrono::high_resolution_clock::now();
+
+    for (int i = 1; i < occasionally.size(); i++) {
+        // RayTrace the image
+        scene->TraceImage(image, occasionally[i]- occasionally[i-1]);
+
+        // output occasionally
+        std::chrono::time_point<std::chrono::high_resolution_clock> stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
+        std::cout << "finished " + std::to_string(occasionally[i]) + " with time " << duration.count() << std::endl;
+
+        // Write the image
+        WriteHdrImage(hdrBaseName + std::to_string(occasionally[i])+".hdr", scene->width, scene->height, image, occasionally[i]);
+    }
 
 }
