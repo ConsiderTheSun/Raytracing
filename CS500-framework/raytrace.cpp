@@ -368,20 +368,9 @@ Color Scene::TracePath(Ray r) {
         omegaI = glm::normalize(P.shape->SampleBrdf(omegaO, N));
         Intersection Q = TraceRay(Ray(P.point, omegaI));
 
-        
+
 
         if (Q.miss) break; 
-
-        /*float af = dot(omegaI, omegaO);
-        if (af < 0 && Q.shape == P.shape) {
-            float aDot = dot(normalize(Q.n), normalize(-omegaI));
-            if (aDot < 0 && glm::length(Q.shape->material->Kt) > 0.01) {
-                std::cout << "dot: " << dot(normalize(Q.n), normalize(-omegaI)) << std::endl;
-            }
-           std::cout << af << std::endl;
-        }*/
-
-
 
         const glm::vec3 f = P.shape->EvalScattering(omegaO, N, omegaI, attenuationDistance);
         p = P.shape->PdfBrdf(omegaO, N, omegaI) * RUSSIAN_ROULETTE;

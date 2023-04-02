@@ -103,8 +103,8 @@ int main(int argc, char** argv)
     //std::string default = "sdfClassic.scn";
     //std::string default = "sdfExtra.scn";
     //std::string default = "sdfFields.scn";
-    std::string default = "sdfShapes.scn";
-    //std::string default = "testsceneTransmission.scn";
+    //std::string default = "sdfShapes.scn";
+    std::string default = "testsceneTransmission.scn";
     //std::cout << "scene: ";
     //std::cin >> default;
     

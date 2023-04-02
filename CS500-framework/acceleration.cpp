@@ -1,6 +1,5 @@
 
 #include "geom.h"
-//#include "raytrace.h"
 #include "acceleration.h"
 
 #include "AuxilaryFunctions.h"
@@ -230,8 +229,8 @@ float Shape::PdfBrdf(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI) {
         Pt = Pr;
     }
     else {
-        Pt = D(mt, N) * abs(dot(mt, N)) * pow(etaO,2) * abs(dot(omegaI,mt))
-            / pow( etaO*dot(omegaI, mt) + etaI*dot(omegaO,mt),2);
+        Pt = D(mt, N) * abs(dot(mt, N)) * ((pow(etaO,2) * abs(dot(omegaI,mt)))
+            / pow( etaO*dot(omegaI, mt) + etaI*dot(omegaO,mt),2));
     }
 
     return pd*Pd + pr*Pr + pt*Pt;
@@ -281,7 +280,6 @@ glm::vec3 Shape::EvalScattering(glm::vec3 omegaO, glm::vec3 N, glm::vec3 omegaI,
         vec3 attenuationFactor;
 
         if (dot(omegaO, N) < 0) {
-            //std::cout << "attenuationDistance: " << attenuationDistance << std::endl;
             const vec3 logKt = vec3(std::log(material->Kt.x), std::log(material->Kt.y), std::log(material->Kt.z))
                 / std::log(exp(1.0));
             attenuationFactor = vec3(
@@ -406,14 +404,14 @@ Intersection Sphere::intersect(Ray r) {
     float t1 = -bHalf + sqrtD;
     float t2 = -bHalf - sqrtD;
 
-    if (t1 < EPSILON && t2 < EPSILON) {
-        return Intersection();
-    }
-    else if (t1 < t2) {
+    if ((t1 < t2 || t2 < EPSILON) && t1 > EPSILON) {
         return Intersection(this, t1, normalize((r.o + t1 * r.d) - center), r.o + r.d*t1);
     }
-    else {
+    else if (t2 > EPSILON) {
         return Intersection(this, t2, normalize((r.o + t2 * r.d) - center), r.o + r.d * t2);
+    }
+    else {
+        return Intersection();
     }
 };
 
